@@ -18,6 +18,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "ReconEx",
   description: "ReconEx: billing reconciliation and variance investigation.",
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/icon.png",
+  },
 };
 
 export default async function RootLayout({

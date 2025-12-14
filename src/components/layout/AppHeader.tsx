@@ -6,29 +6,7 @@ import { useUiStore } from "@/store/uiStore";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { LinkButton } from "@/components/ui/LinkButton";
 import Link from "next/link";
-
-const PlaceholderIcon = () => (
-  <Box
-    sx={{
-      width: 36,
-      height: 36,
-      borderRadius: 2,
-      background: (theme) =>
-        theme.palette.mode === "light"
-          ? "linear-gradient(135deg, #6366f1 0%, #22d3ee 100%)"
-          : "linear-gradient(135deg, #38bdf8 0%, #a855f7 100%)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      color: "common.white",
-      fontWeight: 700,
-      letterSpacing: 0.5,
-      fontSize: 14,
-    }}
-  >
-    BI
-  </Box>
-);
+import Image from "next/image";
 
 export const AppHeader = () => {
   const toggleSidebar = useUiStore((state) => state.toggleSidebar);
@@ -68,7 +46,18 @@ export const AppHeader = () => {
           href="/"
           sx={{ flexShrink: 0, textDecoration: "none", color: "inherit" }}
         >
-          <PlaceholderIcon />
+          <Box
+            sx={{
+              width: 36,
+              height: 36,
+              borderRadius: 2,
+              overflow: "hidden",
+              flexShrink: 0,
+              backgroundColor: (theme) => theme.palette.background.default,
+            }}
+          >
+            <Image src="/reconex-logo.png" alt="ReconEx" width={36} height={36} priority />
+          </Box>
           <Typography variant="h6" sx={{ fontWeight: 600, letterSpacing: 0.4 }}>
             ReconEx
           </Typography>

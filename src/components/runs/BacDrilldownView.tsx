@@ -24,7 +24,6 @@ import {
   Switch,
   Tab,
   Tabs,
-  Link as MuiLink,
   TextField,
   Tooltip,
   Typography,
@@ -1015,13 +1014,12 @@ export function BacDrilldownView() {
 
           return (
             <Box sx={{ p: 2, pt: 3 }} data-testid={`details-drawer-${key}`}>
+              {/* Spacer so drawer content doesn't sit under fixed app header */}
+              <Box sx={theme.mixins.toolbar} />
               <Stack direction="row" alignItems="center" spacing={1}>
                 <Box sx={{ flex: 1 }}>
                   <Typography variant="h5" fontWeight={900} sx={{ lineHeight: 1.15 }}>
                     {ctx.displayName ?? selected.productCode}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-                    {selected.brandToken} / {selected.productCode}
                   </Typography>
                 </Box>
                 <IconButton onClick={() => setDetailsOpen(false)} aria-label="Close details">
@@ -1031,6 +1029,10 @@ export function BacDrilldownView() {
 
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
                 {brandTokenLabel(selected.brandToken)}
+              </Typography>
+
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+                Product Code: <strong>{selected.productCode}</strong>
               </Typography>
 
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
@@ -1047,24 +1049,52 @@ export function BacDrilldownView() {
               <Typography variant="subtitle2" fontWeight={800} gutterBottom>
                 Summary
               </Typography>
-              <Stack spacing={1}>
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  <Chip size="small" label={`DI total: $${ctx.observed.diTotal}`} />
-                  <Chip size="small" label={`GM total: $${ctx.observed.gmTotal}`} />
-                </Stack>
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  <Chip size="small" variant="outlined" label={`DI status: ${ctx.observed.diStatus}`} />
-                  <Chip size="small" variant="outlined" label={`GM status: ${ctx.observed.gmStatus}`} />
-                </Stack>
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  <Chip size="small" variant="outlined" label={`DI effective: ${ctx.observed.diEffectiveDate}`} />
-                  <Chip size="small" variant="outlined" label={`GM effective: ${ctx.observed.gmEffectiveDate}`} />
-                </Stack>
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  <Chip size="small" variant="outlined" label={`DI updated: ${ctx.observed.diLastUpdated}`} />
-                  <Chip size="small" variant="outlined" label={`GM updated: ${ctx.observed.gmLastUpdated}`} />
-                </Stack>
-              </Stack>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: "140px 1fr 1fr",
+                  gap: 1,
+                  alignItems: "center",
+                }}
+              >
+                <Box />
+                <Typography variant="caption" fontWeight={800}>
+                  DI
+                </Typography>
+                <Typography variant="caption" fontWeight={800}>
+                  GM
+                </Typography>
+
+                <Typography variant="body2" fontWeight={700}>
+                  Total
+                </Typography>
+                <Typography variant="body2">${ctx.observed.diTotal}</Typography>
+                <Typography variant="body2">${ctx.observed.gmTotal}</Typography>
+
+                <Typography variant="body2" fontWeight={700}>
+                  Status
+                </Typography>
+                <Typography variant="body2">{ctx.observed.diStatus}</Typography>
+                <Typography variant="body2">{ctx.observed.gmStatus}</Typography>
+
+                <Typography variant="body2" fontWeight={700}>
+                  Effective date
+                </Typography>
+                <Typography variant="body2">{ctx.observed.diEffectiveDate}</Typography>
+                <Typography variant="body2">{ctx.observed.gmEffectiveDate}</Typography>
+
+                <Typography variant="body2" fontWeight={700}>
+                  Last updated
+                </Typography>
+                <Typography variant="body2">{ctx.observed.diLastUpdated}</Typography>
+                <Typography variant="body2">{ctx.observed.gmLastUpdated}</Typography>
+
+                <Typography variant="body2" fontWeight={700}>
+                  Quantity
+                </Typography>
+                <Typography variant="body2">{ctx.observed.diQty}</Typography>
+                <Typography variant="body2">{ctx.observed.gmQty}</Typography>
+              </Box>
 
               <Divider sx={{ my: 2 }} />
 
@@ -1075,64 +1105,23 @@ export function BacDrilldownView() {
                 <Typography variant="body2">
                   Account:{" "}
                   <strong>
-                    {ctx.salesforce.accountId ? (
-                      <MuiLink
-                        href={new URL(`/${ctx.salesforce.accountId}`, salesforceBaseUrl).toString()}
-                        target="_blank"
-                        rel="noreferrer"
-                        underline="hover"
-                      >
-                        {ctx.salesforce.accountName ?? ctx.salesforce.accountId}
-                      </MuiLink>
-                    ) : (
-                      (ctx.salesforce.accountName ?? "—")
-                    )}
-                    {ctx.salesforce.accountId && ctx.salesforce.accountName ? ` (${ctx.salesforce.accountId})` : ""}
+                    {ctx.salesforce.accountName ?? "—"}
+                    {ctx.salesforce.accountId ? ` (${ctx.salesforce.accountId})` : ""}
                   </strong>
                 </Typography>
                 {ctx.salesforce.subscriptionId ? (
                   <Typography variant="body2">
-                    Subscription:{" "}
-                    <strong>
-                      <MuiLink
-                        href={new URL(`/${ctx.salesforce.subscriptionId}`, salesforceBaseUrl).toString()}
-                        target="_blank"
-                        rel="noreferrer"
-                        underline="hover"
-                      >
-                        {ctx.salesforce.subscriptionId}
-                      </MuiLink>
-                    </strong>
+                    Subscription: <strong>{ctx.salesforce.subscriptionId}</strong>
                   </Typography>
                 ) : null}
                 {ctx.salesforce.orderItemId ? (
                   <Typography variant="body2">
-                    Order Item:{" "}
-                    <strong>
-                      <MuiLink
-                        href={new URL(`/${ctx.salesforce.orderItemId}`, salesforceBaseUrl).toString()}
-                        target="_blank"
-                        rel="noreferrer"
-                        underline="hover"
-                      >
-                        {ctx.salesforce.orderItemId}
-                      </MuiLink>
-                    </strong>
+                    Order Item: <strong>{ctx.salesforce.orderItemId}</strong>
                   </Typography>
                 ) : null}
                 {ctx.salesforce.quoteLineId ? (
                   <Typography variant="body2">
-                    Quote Line:{" "}
-                    <strong>
-                      <MuiLink
-                        href={new URL(`/${ctx.salesforce.quoteLineId}`, salesforceBaseUrl).toString()}
-                        target="_blank"
-                        rel="noreferrer"
-                        underline="hover"
-                      >
-                        {ctx.salesforce.quoteLineId}
-                      </MuiLink>
-                    </strong>
+                    Quote Line: <strong>{ctx.salesforce.quoteLineId}</strong>
                   </Typography>
                 ) : null}
 
@@ -1140,7 +1129,7 @@ export function BacDrilldownView() {
                   {ctx.salesforce.accountId ? (
                     <MuiButton
                       size="small"
-                      variant="outlined"
+                      variant="contained"
                       onClick={() => window.open(new URL(`/${ctx.salesforce.accountId}`, salesforceBaseUrl).toString(), "_blank")}
                     >
                       Open account
@@ -1149,7 +1138,7 @@ export function BacDrilldownView() {
                   {ctx.salesforce.subscriptionId ? (
                     <MuiButton
                       size="small"
-                      variant="outlined"
+                      variant="contained"
                       onClick={() => window.open(new URL(`/${ctx.salesforce.subscriptionId}`, salesforceBaseUrl).toString(), "_blank")}
                     >
                       Open subscription
@@ -1158,7 +1147,7 @@ export function BacDrilldownView() {
                   {ctx.salesforce.orderItemId ? (
                     <MuiButton
                       size="small"
-                      variant="outlined"
+                      variant="contained"
                       onClick={() => window.open(new URL(`/${ctx.salesforce.orderItemId}`, salesforceBaseUrl).toString(), "_blank")}
                     >
                       Open order item
@@ -1167,26 +1156,12 @@ export function BacDrilldownView() {
                   {ctx.salesforce.quoteLineId ? (
                     <MuiButton
                       size="small"
-                      variant="outlined"
+                      variant="contained"
                       onClick={() => window.open(new URL(`/${ctx.salesforce.quoteLineId}`, salesforceBaseUrl).toString(), "_blank")}
                     >
                       Open quote line
                     </MuiButton>
                   ) : null}
-                  <MuiButton
-                    size="small"
-                    variant="text"
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(ctx.salesforce.searchHint);
-                        enqueueSnackbar("Copied Salesforce search hint", { variant: "success" });
-                      } catch {
-                        enqueueSnackbar("Failed to copy", { variant: "error" });
-                      }
-                    }}
-                  >
-                    Copy search hint
-                  </MuiButton>
                 </Stack>
 
                 {ctx.salesforce.matchMethod !== "diRow" ? (
