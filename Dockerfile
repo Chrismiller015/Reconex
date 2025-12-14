@@ -56,7 +56,7 @@ ENV SKIP_ENV_VALIDATION=${SKIP_ENV_VALIDATION}
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build
+RUN NODE_OPTIONS=--max-old-space-size=4096 npm run build
 
 # --- Production runtime ---
 FROM node:20-alpine AS runner
