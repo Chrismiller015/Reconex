@@ -31,6 +31,7 @@ export const env = createEnv({
     NEXT_PUBLIC_SOKETI_HOST: z.string().min(1).optional(),
     NEXT_PUBLIC_SOKETI_PORT: z.string().min(1).optional(),
     NEXT_PUBLIC_SOKETI_USE_TLS: z.enum(["true", "false"]).optional(),
+    NEXT_PUBLIC_SALESFORCE_BASE_URL: z.string().url().optional(),
   },
   runtimeEnv: {
     DATABASE_URL: process.env.DATABASE_URL,
@@ -54,6 +55,7 @@ export const env = createEnv({
     NEXT_PUBLIC_SOKETI_HOST: process.env.NEXT_PUBLIC_SOKETI_HOST,
     NEXT_PUBLIC_SOKETI_PORT: process.env.NEXT_PUBLIC_SOKETI_PORT,
     NEXT_PUBLIC_SOKETI_USE_TLS: process.env.NEXT_PUBLIC_SOKETI_USE_TLS,
+    NEXT_PUBLIC_SALESFORCE_BASE_URL: process.env.NEXT_PUBLIC_SALESFORCE_BASE_URL,
   },
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
   emptyStringAsUndefined: true,

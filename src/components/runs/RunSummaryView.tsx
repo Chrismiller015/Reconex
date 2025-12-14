@@ -326,12 +326,13 @@ export function RunSummaryView() {
               .filter((f) => !(onlyOutsideTolerance && f === "VARIANCE"))
               .map((f) => {
                 const meta = flagChipProps(f);
-                return <Chip key={f} size="small" label={meta.label} variant={meta.variant} color={meta.color} />;
+                // Run results: keep badges visually consistent (non-filled).
+                return <Chip key={f} size="small" label={meta.label} variant="outlined" color={meta.color} />;
               })}
             {row.original.hasRemovedGroups ? (
               (() => {
                 const meta = flagChipProps("HAS_REMOVED");
-                return <Chip size="small" label={meta.label} variant={meta.variant} color={meta.color} />;
+                return <Chip size="small" label={meta.label} variant="outlined" color={meta.color} />;
               })()
             ) : null}
           </Stack>

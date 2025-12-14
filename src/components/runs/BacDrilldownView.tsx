@@ -24,6 +24,7 @@ import {
   Switch,
   Tab,
   Tabs,
+  Link as MuiLink,
   TextField,
   Tooltip,
   Typography,
@@ -35,6 +36,7 @@ import { useSnackbar } from "notistack";
 import { flagChipProps, flagDescription, worstFlagCode } from "@/components/runs/flagPresentation";
 import CloseIcon from "@mui/icons-material/Close";
 import StarterKit from "@tiptap/starter-kit";
+import { env } from "@/env.mjs";
 import {
   MenuButtonBold,
   MenuButtonItalic,
@@ -62,6 +64,16 @@ type DrilldownDto = {
     flags: { flags?: string[]; isVariance?: boolean };
     context: {
       displayName: string | null;
+      salesforce: {
+        accountId: string | null;
+        accountName: string | null;
+        subscriptionId: string | null;
+        orderItemId: string | null;
+        quoteLineId: string | null;
+        matchMethod: "diRow" | "diBacBrand" | "diBacAny" | "unknown";
+        candidates: Array<{ accountId: string; accountName: string | null; count: number }>;
+        searchHint: string;
+      };
       pricing: {
         expectedUnitPrice: string;
         expectedProductCode: string;
@@ -147,6 +159,9 @@ export function BacDrilldownView() {
     setDetailsKey(key);
     setDetailsOpen(true);
   }, []);
+
+  // Prefer env override, but default to the known Salesforce instance.
+  const salesforceBaseUrl = (env.NEXT_PUBLIC_SALESFORCE_BASE_URL ?? "https://cars-commerce.lightning.force.com/").trim();
 
   const query = useQuery({
     queryKey: ["bac-drilldown", runId, bac],
@@ -1001,23 +1016,22 @@ export function BacDrilldownView() {
           return (
             <Box sx={{ p: 2, pt: 3 }} data-testid={`details-drawer-${key}`}>
               <Stack direction="row" alignItems="center" spacing={1}>
-                <Typography variant="h5" fontWeight={900} flex={1} sx={{ lineHeight: 1.15 }}>
-                  {selected.brandToken} / {selected.productCode}
-                </Typography>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="h5" fontWeight={900} sx={{ lineHeight: 1.15 }}>
+                    {ctx.displayName ?? selected.productCode}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+                    {selected.brandToken} / {selected.productCode}
+                  </Typography>
+                </Box>
                 <IconButton onClick={() => setDetailsOpen(false)} aria-label="Close details">
                   <CloseIcon />
                 </IconButton>
               </Stack>
 
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
                 {brandTokenLabel(selected.brandToken)}
               </Typography>
-
-              {ctx.displayName ? (
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                  {ctx.displayName}
-                </Typography>
-              ) : null}
 
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
                 {codes.includes("VARIANCE") ? <Chip size="small" color="error" label="Variance" /> : null}
@@ -1050,6 +1064,137 @@ export function BacDrilldownView() {
                   <Chip size="small" variant="outlined" label={`DI updated: ${ctx.observed.diLastUpdated}`} />
                   <Chip size="small" variant="outlined" label={`GM updated: ${ctx.observed.gmLastUpdated}`} />
                 </Stack>
+              </Stack>
+
+              <Divider sx={{ my: 2 }} />
+
+              <Typography variant="subtitle2" fontWeight={800} gutterBottom>
+                Salesforce
+              </Typography>
+              <Stack spacing={1}>
+                <Typography variant="body2">
+                  Account:{" "}
+                  <strong>
+                    {ctx.salesforce.accountId ? (
+                      <MuiLink
+                        href={new URL(`/${ctx.salesforce.accountId}`, salesforceBaseUrl).toString()}
+                        target="_blank"
+                        rel="noreferrer"
+                        underline="hover"
+                      >
+                        {ctx.salesforce.accountName ?? ctx.salesforce.accountId}
+                      </MuiLink>
+                    ) : (
+                      (ctx.salesforce.accountName ?? "—")
+                    )}
+                    {ctx.salesforce.accountId && ctx.salesforce.accountName ? ` (${ctx.salesforce.accountId})` : ""}
+                  </strong>
+                </Typography>
+                {ctx.salesforce.subscriptionId ? (
+                  <Typography variant="body2">
+                    Subscription:{" "}
+                    <strong>
+                      <MuiLink
+                        href={new URL(`/${ctx.salesforce.subscriptionId}`, salesforceBaseUrl).toString()}
+                        target="_blank"
+                        rel="noreferrer"
+                        underline="hover"
+                      >
+                        {ctx.salesforce.subscriptionId}
+                      </MuiLink>
+                    </strong>
+                  </Typography>
+                ) : null}
+                {ctx.salesforce.orderItemId ? (
+                  <Typography variant="body2">
+                    Order Item:{" "}
+                    <strong>
+                      <MuiLink
+                        href={new URL(`/${ctx.salesforce.orderItemId}`, salesforceBaseUrl).toString()}
+                        target="_blank"
+                        rel="noreferrer"
+                        underline="hover"
+                      >
+                        {ctx.salesforce.orderItemId}
+                      </MuiLink>
+                    </strong>
+                  </Typography>
+                ) : null}
+                {ctx.salesforce.quoteLineId ? (
+                  <Typography variant="body2">
+                    Quote Line:{" "}
+                    <strong>
+                      <MuiLink
+                        href={new URL(`/${ctx.salesforce.quoteLineId}`, salesforceBaseUrl).toString()}
+                        target="_blank"
+                        rel="noreferrer"
+                        underline="hover"
+                      >
+                        {ctx.salesforce.quoteLineId}
+                      </MuiLink>
+                    </strong>
+                  </Typography>
+                ) : null}
+
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  {ctx.salesforce.accountId ? (
+                    <MuiButton
+                      size="small"
+                      variant="outlined"
+                      onClick={() => window.open(new URL(`/${ctx.salesforce.accountId}`, salesforceBaseUrl).toString(), "_blank")}
+                    >
+                      Open account
+                    </MuiButton>
+                  ) : null}
+                  {ctx.salesforce.subscriptionId ? (
+                    <MuiButton
+                      size="small"
+                      variant="outlined"
+                      onClick={() => window.open(new URL(`/${ctx.salesforce.subscriptionId}`, salesforceBaseUrl).toString(), "_blank")}
+                    >
+                      Open subscription
+                    </MuiButton>
+                  ) : null}
+                  {ctx.salesforce.orderItemId ? (
+                    <MuiButton
+                      size="small"
+                      variant="outlined"
+                      onClick={() => window.open(new URL(`/${ctx.salesforce.orderItemId}`, salesforceBaseUrl).toString(), "_blank")}
+                    >
+                      Open order item
+                    </MuiButton>
+                  ) : null}
+                  {ctx.salesforce.quoteLineId ? (
+                    <MuiButton
+                      size="small"
+                      variant="outlined"
+                      onClick={() => window.open(new URL(`/${ctx.salesforce.quoteLineId}`, salesforceBaseUrl).toString(), "_blank")}
+                    >
+                      Open quote line
+                    </MuiButton>
+                  ) : null}
+                  <MuiButton
+                    size="small"
+                    variant="text"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(ctx.salesforce.searchHint);
+                        enqueueSnackbar("Copied Salesforce search hint", { variant: "success" });
+                      } catch {
+                        enqueueSnackbar("Failed to copy", { variant: "error" });
+                      }
+                    }}
+                  >
+                    Copy search hint
+                  </MuiButton>
+                </Stack>
+
+                {ctx.salesforce.matchMethod !== "diRow" ? (
+                  <Typography variant="caption" color="text.secondary">
+                    Inferred via: {ctx.salesforce.matchMethod}
+                    {ctx.salesforce.candidates?.length ? ` (candidates: ${ctx.salesforce.candidates.length})` : ""}
+                  </Typography>
+                ) : null}
               </Stack>
 
               <Divider sx={{ my: 2 }} />

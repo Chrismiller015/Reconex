@@ -31,7 +31,7 @@ ARG NEXT_PUBLIC_SOKETI_KEY
 ARG NEXT_PUBLIC_SOKETI_HOST
 ARG NEXT_PUBLIC_SOKETI_PORT
 ARG NEXT_PUBLIC_SOKETI_USE_TLS
-ARG SKIP_ENV_VALIDATION=false
+ARG SKIP_ENV_VALIDATION=true
 
 ENV DATABASE_URL=${DATABASE_URL}
 ENV GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
@@ -64,6 +64,8 @@ WORKDIR /app
 RUN apk add --no-cache ca-certificates && update-ca-certificates
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV RECONEX_STORAGE_DIR=/app/storage/uploads
+
 RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
 
 COPY --from=builder /app/public ./public
@@ -71,7 +73,12 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/prisma ./prisma
+# Note: copying node_modules from builder to ensure devDependencies (like prisma CLI) are available for migration script if needed,
+# though ideally we'd prune. For now, safety first.
 COPY --from=builder /app/node_modules ./node_modules
+
+# Create storage directory and assign permissions
+RUN mkdir -p /app/storage/uploads && chown -R nextjs:nodejs /app/storage
 
 USER nextjs
 EXPOSE 3000

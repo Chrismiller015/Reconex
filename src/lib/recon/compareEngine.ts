@@ -81,6 +81,14 @@ function mostCommonString(values: Array<string | null | undefined>): string | nu
   return best;
 }
 
+function statusKey(values: Array<string | null | undefined>): string | null {
+  const unique = Array.from(new Set(values.map((s) => String(s ?? "").trim()).filter(Boolean)));
+  if (unique.length === 0) return null;
+  unique.sort();
+  if (unique.length === 1) return unique[0]!;
+  return `mixed:${unique.join(",")}`;
+}
+
 export function runCompareEngine(
   diRows: DiRowNormalized[],
   gmRows: GmRowNormalized[],
@@ -201,8 +209,8 @@ export function runCompareEngine(
       const gDelta = diAmount.sub(gmAmount);
 
       // Status mismatch (only meaningful when both sides are present).
-      const diStatus = diGroup ? mostCommonString(diGroup.rows.map((r) => r.status)) : null;
-      const gmStatus = gmGroup ? mostCommonString(gmGroup.rows.map((r) => r.status)) : null;
+      const diStatus = diGroup ? statusKey(diGroup.rows.map((r) => r.status)) : null;
+      const gmStatus = gmGroup ? statusKey(gmGroup.rows.map((r) => r.status)) : null;
       if (diStatus && gmStatus && diStatus !== gmStatus) {
         gFlags.add("STATUS_MISMATCH");
         flags.add("STATUS_MISMATCH");

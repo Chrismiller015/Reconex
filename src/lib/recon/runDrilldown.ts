@@ -6,6 +6,7 @@ import type { DiRowNormalized, GmRowNormalized } from "@/lib/recon/rows";
 import type { BrandToken } from "@/lib/recon/types";
 import { getPricingTable } from "@/lib/pricing/pricingTable";
 import { moneyMismatch, resolveExpectedPricing } from "@/lib/recon/pricingRules";
+import { parseProductCode } from "@/lib/recon/productCode";
 
 function toDec(value: unknown): Decimal {
   return new Decimal(String(value ?? "0"));
@@ -70,6 +71,16 @@ export type BacDrilldownDto = {
     flags: unknown;
     context: {
       displayName: string | null;
+      salesforce: {
+        accountId: string | null;
+        accountName: string | null;
+        subscriptionId: string | null;
+        orderItemId: string | null;
+        quoteLineId: string | null;
+        matchMethod: "diRow" | "diBacBrand" | "diBacAny" | "unknown";
+        candidates: Array<{ accountId: string; accountName: string | null; count: number }>;
+        searchHint: string;
+      };
       pricing: {
         expectedUnitPrice: string;
         expectedProductCode: string;
@@ -166,6 +177,65 @@ export async function getBacDrilldown(runId: string, bac: string): Promise<BacDr
 
   const diRowsFull = diParsed.rows.filter((r) => r.bac === bac);
   const gmRowsFull = gmParsed.rows.filter((r) => r.bac === bac);
+
+  const pickRaw = (raw: Record<string, unknown>, keys: string[]): string | null => {
+    for (const k of keys) {
+      const v = raw[k];
+      const s = String(v ?? "").trim();
+      if (s) return s;
+    }
+    const rawKeys = Object.keys(raw);
+    for (const k of keys) {
+      const target = k.trim().toLowerCase();
+      const found = rawKeys.find((rk) => rk.trim().toLowerCase() === target);
+      if (!found) continue;
+      const s = String(raw[found] ?? "").trim();
+      if (s) return s;
+    }
+    return null;
+  };
+
+  const diSfForRow = (r: DiRowNormalized) => {
+    const accountId = pickRaw(r.raw, ["Account ID as Id", "Account Id as Id", "Account ID", "AccountId"]);
+    const accountName = pickRaw(r.raw, ["Account", "Account Name"]);
+    const subscriptionId = pickRaw(r.raw, ["Subscription ID as Id", "Subscription Id as Id", "Subscription ID"]);
+    const orderItemId = pickRaw(r.raw, ["Id", "Order Item Id", "OrderItem Id"]);
+    const quoteLineId = pickRaw(r.raw, ["QuoteLine Id as Id", "Quote Line Id as Id", "QuoteLineId"]);
+    return { accountId, accountName, subscriptionId, orderItemId, quoteLineId };
+  };
+
+  type SfCandidate = { accountId: string; accountName: string | null; count: number };
+
+  const candidateKey = (id: string, name: string | null) => `${id}::${(name ?? "").trim()}`;
+
+  const bestCandidatesFromCounts = (counts: Map<string, SfCandidate>): SfCandidate[] => {
+    const list = [...counts.values()];
+    list.sort((a, b) => b.count - a.count || a.accountId.localeCompare(b.accountId));
+    return list;
+  };
+
+  const diAccountCountsByBac = new Map<string, Map<string, SfCandidate>>();
+  const diAccountCountsByBacBrand = new Map<string, Map<string, SfCandidate>>();
+
+  for (const r of diRowsFull) {
+    const sf = diSfForRow(r);
+    if (!sf.accountId) continue;
+    const k = candidateKey(sf.accountId, sf.accountName);
+    const bacKey = r.bac;
+    const brandKey = `${r.bac}::${r.brandToken}`;
+
+    const m1 = diAccountCountsByBac.get(bacKey) ?? new Map<string, SfCandidate>();
+    const c1 = m1.get(k) ?? { accountId: sf.accountId, accountName: sf.accountName, count: 0 };
+    c1.count += 1;
+    m1.set(k, c1);
+    diAccountCountsByBac.set(bacKey, m1);
+
+    const m2 = diAccountCountsByBacBrand.get(brandKey) ?? new Map<string, SfCandidate>();
+    const c2 = m2.get(k) ?? { accountId: sf.accountId, accountName: sf.accountName, count: 0 };
+    c2.count += 1;
+    m2.set(k, c2);
+    diAccountCountsByBacBrand.set(brandKey, m2);
+  }
 
   const diRows = diRowsFull.map((r) => ({
       source: r.source,
@@ -308,6 +378,53 @@ export async function getBacDrilldown(runId: string, bac: string): Promise<BacDr
 
       if (statusMismatch) reasons.push(`Status mismatch: DI is ${diStatus}, GM is ${gmStatus}`);
 
+      // Salesforce linkage: prefer the product's DI rows; otherwise infer from other DI rows on the same BAC.
+      const diSf = diGroup.map(diSfForRow);
+      const accountId = mostCommonString(diSf.map((x) => x.accountId));
+      const accountName = mostCommonString(diSf.map((x) => x.accountName));
+      const subscriptionId = mostCommonString(diSf.map((x) => x.subscriptionId));
+      const orderItemId = mostCommonString(diSf.map((x) => x.orderItemId));
+      const quoteLineId = mostCommonString(diSf.map((x) => x.quoteLineId));
+
+      let resolvedAccountId = accountId;
+      let resolvedAccountName = accountName;
+      let matchMethod: BacDrilldownDto["groups"][number]["context"]["salesforce"]["matchMethod"] = "diRow";
+      let candidates: SfCandidate[] = [];
+      if (!resolvedAccountId) {
+        // If GM Product Brand is wrong, the brand embedded in the product code is often the better key.
+        const parsed = parseProductCode(g.productCode);
+        const brandFromCode = parsed.ok ? (parsed.value.brandTokenFromCode as string | null) : null;
+
+        const brandKeys: string[] = [];
+        if (brandFromCode) brandKeys.push(`${bac}::${brandFromCode}`);
+        brandKeys.push(`${bac}::${g.brandToken}`);
+
+        for (const bk of brandKeys) {
+          const byBrand = diAccountCountsByBacBrand.get(bk);
+          if (byBrand && byBrand.size) {
+            const list = bestCandidatesFromCounts(byBrand);
+            candidates = list;
+            resolvedAccountId = list[0]!.accountId;
+            resolvedAccountName = list[0]!.accountName;
+            matchMethod = "diBacBrand";
+            break;
+          }
+        }
+
+        if (!resolvedAccountId) {
+          const byAny = diAccountCountsByBac.get(bac);
+          if (byAny && byAny.size) {
+            const list = bestCandidatesFromCounts(byAny);
+            candidates = list;
+            resolvedAccountId = list[0]!.accountId;
+            resolvedAccountName = list[0]!.accountName;
+            matchMethod = "diBacAny";
+          } else {
+            matchMethod = "unknown";
+          }
+        }
+      }
+
       const pricingMismatch = { di: false, gm: false };
       let displayName: string | null = null;
       let pricing: BacDrilldownDto["groups"][number]["context"]["pricing"] = null;
@@ -354,6 +471,16 @@ export async function getBacDrilldown(runId: string, bac: string): Promise<BacDr
         flags: g.flags,
         context: {
           displayName,
+          salesforce: {
+            accountId: resolvedAccountId,
+            accountName: resolvedAccountName,
+            subscriptionId,
+            orderItemId,
+            quoteLineId,
+            matchMethod,
+            candidates: candidates.map((c) => ({ accountId: c.accountId, accountName: c.accountName, count: c.count })),
+            searchHint: `BAC=${bac} Brand=${g.brandToken} Product=${g.productCode}`,
+          },
           pricing,
           observed: {
             diStatus,

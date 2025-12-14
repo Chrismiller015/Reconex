@@ -117,8 +117,12 @@ test("Drilldown context: hover shows DI brand name + drawer explains status/pric
 
   await expect(drawer.getByText("Status mismatch", { exact: true })).toBeVisible();
   await expect(drawer.getByText(/Pricing mismatch/).first()).toBeVisible();
-  await expect(drawer.getByText(/Expected unit/i)).toBeVisible();
+  await expect(drawer.getByText(/Expected Unit Price/i)).toBeVisible();
   await expect(drawer.getByText(/DI status: live/i)).toBeVisible();
   await expect(drawer.getByText(/GM status: pending live/i)).toBeVisible();
+
+  // Salesforce context should be visible (doesn't require a real SF URL)
+  await expect(drawer.getByText("Salesforce", { exact: true })).toBeVisible();
+  await expect(drawer.getByText(/Account:/i)).toBeVisible();
 });
 
