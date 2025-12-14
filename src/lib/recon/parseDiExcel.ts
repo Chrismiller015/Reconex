@@ -6,7 +6,7 @@ import { normalizeBac } from "@/lib/recon/bac";
 import { normalizeBrandToken } from "@/lib/recon/brand";
 import { normalizeStatus, isBillableDiStatus } from "@/lib/recon/status";
 import { parseMoney } from "@/lib/recon/money";
-import { parseDiEffectiveDate } from "@/lib/recon/dates";
+import { parseDiEffectiveDate, parseOptionalDateUtcStart } from "@/lib/recon/dates";
 import type { DiRowNormalized, ExclusionReason } from "@/lib/recon/rows";
 
 function buildHeaderIndex(headers: string[]): Map<string, number> {
@@ -69,6 +69,9 @@ export async function parseDiExcelRows(buffer: Buffer): Promise<{ rows: DiRowNor
     const productCodeRaw = String(pick(row, headerIndex, "OemProductCodePopcorn") ?? "").trim();
     if (!productCodeRaw) continue;
 
+    const diProductCodeRaw = String(pick(row, headerIndex, "DI Product Code") ?? "").trim();
+    const diProductCode = diProductCodeRaw ? diProductCodeRaw : null;
+
     const brandRes = normalizeBrandToken(pick(row, headerIndex, "Brand Mix"));
     if (!brandRes.ok) continue;
 
@@ -80,9 +83,15 @@ export async function parseDiExcelRows(buffer: Buffer): Promise<{ rows: DiRowNor
     if (!dateRes.ok) exclusionReasons.push("INVALID_VALUE");
     const effectiveDateUtc = dateRes.ok ? dateRes.value : new Date(0);
 
+    const lastUpdatedDateUtc = parseOptionalDateUtcStart(pick(row, headerIndex, "Last Updated Date"));
+
     const priceRes = parseMoney(pick(row, headerIndex, "Dealer Price"));
     if (!priceRes.ok) exclusionReasons.push("INVALID_VALUE");
     const dealerPrice = priceRes.ok ? priceRes.value : new Decimal(0);
+
+    const qtyRaw = pick(row, headerIndex, "itemQuantity");
+    const qtyParsed = Number(String(qtyRaw ?? "1").trim());
+    const quantity = Number.isFinite(qtyParsed) && qtyParsed > 0 ? qtyParsed : 1;
 
     if (!isBillableDiStatus(status)) exclusionReasons.push("NON_BILLABLE_STATUS");
 
@@ -94,9 +103,12 @@ export async function parseDiExcelRows(buffer: Buffer): Promise<{ rows: DiRowNor
       bac: bacRes.value,
       brandToken: brandRes.value,
       productCode: productCodeRaw,
+      diProductCode,
       status,
       effectiveDateUtc,
+      lastUpdatedDateUtc,
       dealerPrice,
+      quantity,
       isIncludedInTotals,
       exclusionReasons,
     });

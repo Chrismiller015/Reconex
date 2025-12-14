@@ -34,9 +34,9 @@ describe("expectedBillableForGmDesyncFlag", () => {
   const now = new Date("2025-12-14T12:00:00.000Z");
   const todayStart = utcTodayStart(now);
 
-  it("treats pending live/live as expected billable iff effective date is before TODAY (UTC)", () => {
+  it("treats pending live/live as expected billable iff effective date is on/before TODAY (UTC)", () => {
     expect(expectedBillableForGmDesyncFlag("live", new Date("2025-12-13T00:00:00.000Z"), now)).toBe(true);
-    expect(expectedBillableForGmDesyncFlag("live", todayStart, now)).toBe(false);
+    expect(expectedBillableForGmDesyncFlag("live", todayStart, now)).toBe(true);
     expect(expectedBillableForGmDesyncFlag("pending live", new Date("2025-12-15T00:00:00.000Z"), now)).toBe(false);
   });
 

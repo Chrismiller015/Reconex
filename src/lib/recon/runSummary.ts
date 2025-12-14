@@ -104,6 +104,7 @@ export async function getRunSummary(runId: string, options: RunSummaryOptions = 
     const delta = diSum.sub(gmSum);
     const allVarianceGroupsRemoved = varianceGroupsCount > 0 && varianceGroupsRemovedCount === varianceGroupsCount;
     const outsideTolerance = delta.abs().gt(MONEY_TOLERANCE);
+    if (outsideTolerance) flags.add("VARIANCE");
 
     // Default behavior: hide BAC if all its variance groups were removed (unless showRemoved).
     if (allVarianceGroupsRemoved && !options.showRemoved) continue;

@@ -72,13 +72,21 @@ test("Mobile: core flow remains usable + filters accordion works", async ({ page
   await expect(page.getByText(fixtures.gmName)).toBeVisible();
 
   await page.goto("/compare/new");
-  await page.getByTestId("select-di-file").click();
+  const diSelect = page.getByTestId("select-di-file");
+  const gmSelect = page.getByTestId("select-gm-file");
+  await expect(diSelect).toBeEnabled();
+  await expect(gmSelect).toBeEnabled();
+
+  await diSelect.click();
+  await expect(page.getByRole("option", { name: fixtures.diName })).toBeVisible();
   await page.getByRole("option", { name: fixtures.diName }).click();
-  await page.getByTestId("select-gm-file").click();
+
+  await gmSelect.click();
+  await expect(page.getByRole("option", { name: fixtures.gmName })).toBeVisible();
   await page.getByRole("option", { name: fixtures.gmName }).click();
   await page.getByTestId("compare-button").click();
 
-  await expect(page).toHaveURL(/\/runs\/[^/]+$/);
+  await expect(page).toHaveURL(/\/runs\/[^/]+$/, { timeout: 30_000 });
   const runId = page.url().split("/runs/")[1];
 
   // Ensure the BAC table is visible and tappable

@@ -7,7 +7,7 @@ import { normalizeBrandToken, detectBrandMismatch } from "@/lib/recon/brand";
 import { parseProductCode } from "@/lib/recon/productCode";
 import { normalizeStatus } from "@/lib/recon/status";
 import { parseMoney } from "@/lib/recon/money";
-import { parseGmEffectiveDate, expectedBillableForGmDesyncFlag } from "@/lib/recon/dates";
+import { parseGmEffectiveDate, expectedBillableForGmDesyncFlag, parseOptionalDateUtcStart } from "@/lib/recon/dates";
 import { normalizeIsBilling, normalizeIsTerminated } from "@/lib/recon/booleans";
 import type { ExclusionReason, GmRowNormalized } from "@/lib/recon/rows";
 
@@ -91,9 +91,17 @@ export async function parseGmCsvRows(
         if (!effectiveDateRes.ok) exclusionReasons.push("INVALID_VALUE");
         const effectiveDateUtc = effectiveDateRes.ok ? effectiveDateRes.value : new Date(0);
 
+        const lastUpdatedDateUtc =
+          parseOptionalDateUtcStart(pick(raw, km, "Last Updated Date")) ??
+          parseOptionalDateUtcStart(pick(raw, km, "Last Updated Date (Sort)"));
+
         const costRes = parseMoney(pick(raw, km, "Dealer Cost"));
         if (!costRes.ok) exclusionReasons.push("INVALID_VALUE");
         const dealerCost = costRes.ok ? costRes.value : new Decimal(0);
+
+        const qtyRaw = pick(raw, km, "itemQuantity") ?? pick(raw, km, "Quantity");
+        const qtyParsed = Number(String(qtyRaw ?? "1").trim());
+        const quantity = Number.isFinite(qtyParsed) && qtyParsed > 0 ? qtyParsed : 1;
 
         const isBillingRes = normalizeIsBilling(pick(raw, km, "Is Billing"));
         if (!isBillingRes.ok) exclusionReasons.push("INVALID_VALUE");
@@ -120,7 +128,9 @@ export async function parseGmCsvRows(
             productCodeBrandToken,
             status,
             effectiveDateUtc,
+            lastUpdatedDateUtc,
             dealerCost,
+            quantity,
             isBilling,
             expectedBillableForDesync,
             isDesync,

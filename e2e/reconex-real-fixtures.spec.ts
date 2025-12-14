@@ -84,8 +84,13 @@ test("Real fixtures UI flow: upload → compare → drilldown → notes/category
   // Note
   const notesCount = page.getByTestId(`notes-count-${key}`);
   const beforeNotes = await notesCount.textContent();
-  await page.getByTestId(`note-input-${key}`).fill("E2E note");
   await page.getByTestId(`note-add-${key}`).click();
+  // Rich text editor lives in a modal; fill via contenteditable.
+  const editor = page.locator('[role="dialog"] [contenteditable="true"]').first();
+  await expect(editor).toBeVisible();
+  await editor.click();
+  await page.keyboard.type("E2E note");
+  await page.getByRole("button", { name: "Add" }).click();
   await expect(notesCount).not.toHaveText(beforeNotes ?? "");
 
   // Hover highlight: hovered DI row becomes highlighted (and if a matching GM row exists, it highlights too)
@@ -112,6 +117,9 @@ test("Real fixtures UI flow: upload → compare → drilldown → notes/category
   await expect(page.getByTestId(`bac-row-${bac}`)).toHaveCount(0);
   await page.getByTestId("filters-toggle").click();
   await page.getByLabel("Show removed").check();
+  // Show removed BACs can be $0 delta; default filter is "Only Δ variances".
+  const onlyDelta = page.getByLabel("Only Δ variances");
+  if (await onlyDelta.isChecked()) await onlyDelta.uncheck();
   await expect(page.getByTestId(`bac-row-${bac}`)).toBeVisible();
 
   // Refresh drilldown and ensure category persisted

@@ -42,3 +42,58 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   }
 }
 
+export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  try {
+    const { id: runId } = await context.params;
+    const body = (await request.json().catch(() => null)) as null | { noteId?: string; noteText?: string };
+
+    const noteId = body?.noteId;
+    const noteText = body?.noteText?.trim();
+    if (!noteId || !noteText) {
+      return NextResponse.json({ error: "Missing noteId or noteText" }, { status: 400 });
+    }
+
+    const existing = await prisma.varianceNote.findUnique({
+      where: { id: noteId },
+      include: { varianceGroup: true },
+    });
+    if (!existing) return NextResponse.json({ error: "Note not found" }, { status: 404 });
+    if (existing.varianceGroup.runId !== runId) return NextResponse.json({ error: "Note not found" }, { status: 404 });
+
+    const updated = await prisma.varianceNote.update({
+      where: { id: noteId },
+      data: { noteText },
+    });
+
+    return NextResponse.json(updated);
+  } catch (error) {
+    logger.error({ err: error }, "Failed to update note");
+    return NextResponse.json({ error: "Failed to update note" }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
+  try {
+    const { id: runId } = await context.params;
+    const body = (await request.json().catch(() => null)) as null | { noteId?: string };
+
+    const noteId = body?.noteId;
+    if (!noteId) {
+      return NextResponse.json({ error: "Missing noteId" }, { status: 400 });
+    }
+
+    const existing = await prisma.varianceNote.findUnique({
+      where: { id: noteId },
+      include: { varianceGroup: true },
+    });
+    if (!existing) return NextResponse.json({ error: "Note not found" }, { status: 404 });
+    if (existing.varianceGroup.runId !== runId) return NextResponse.json({ error: "Note not found" }, { status: 404 });
+
+    await prisma.varianceNote.delete({ where: { id: noteId } });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    logger.error({ err: error }, "Failed to delete note");
+    return NextResponse.json({ error: "Failed to delete note" }, { status: 500 });
+  }
+}
+

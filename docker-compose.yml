@@ -13,6 +13,11 @@ services:
       - "5433:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-reconex}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
 
   app:
     build:
@@ -39,9 +44,9 @@ services:
         NEXT_PUBLIC_SOKETI_USE_TLS: ${NEXT_PUBLIC_SOKETI_USE_TLS}
         SKIP_ENV_VALIDATION: ${SKIP_ENV_VALIDATION:-true}
     container_name: reconex-app
-    # When bind-mounting the repo into /app for dev, run as the host UID/GID
-    # so Next/Turbopack can create its lockfiles/caches without permission errors.
-    user: "1000:1000"
+    # Rootless Podman uses a user namespace; container "root" maps to your host user.
+    # This avoids Next/Turbopack lockfile permission issues with the bind mount.
+    user: "0:0"
     depends_on:
       - db
     environment:
@@ -56,7 +61,12 @@ services:
     volumes:
       # Podman on Fedora/Bazzite typically needs SELinux relabeling for bind mounts.
       - .:/app:Z
-    command: npm run dev
+    command:
+      [
+        "sh",
+        "-lc",
+        "set -euo pipefail; mkdir -p \"${RECONEX_STORAGE_DIR:-/app/.uploads}\"; i=0; until npx prisma migrate deploy; do i=$((i+1)); if [ \"$i\" -ge 30 ]; then echo \"Prisma migrate failed after retries\" >&2; exit 1; fi; echo \"Waiting for db / applying migrations (attempt $i)...\"; sleep 2; done; npm run dev",
+      ]
     stdin_open: true
     tty: true
 

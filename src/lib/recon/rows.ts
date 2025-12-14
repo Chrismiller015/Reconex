@@ -15,9 +15,12 @@ export type DiRowNormalized = {
   bac: string;
   brandToken: BrandToken;
   productCode: string;
+  diProductCode: string | null;
   status: CanonicalStatus;
   effectiveDateUtc: Date;
+  lastUpdatedDateUtc: Date | null;
   dealerPrice: Decimal;
+  quantity: number;
   isIncludedInTotals: boolean;
   exclusionReasons: ExclusionReason[];
 };
@@ -31,7 +34,9 @@ export type GmRowNormalized = {
   productCodeBrandToken: BrandToken | null; // from Product Code (may mismatch)
   status: CanonicalStatus;
   effectiveDateUtc: Date;
+  lastUpdatedDateUtc: Date | null;
   dealerCost: Decimal;
+  quantity: number;
   isBilling: boolean;
   isTerminatedBac: boolean;
   expectedBillableForDesync: boolean;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { MaterialReactTable, type MRT_ColumnDef } from "material-react-table";
 import {
@@ -17,9 +17,10 @@ import {
   Typography,
   Button as MuiButton,
 } from "@mui/material";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import DownloadIcon from "@mui/icons-material/Download";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import { flagChipProps } from "@/components/runs/flagPresentation";
 
 type RunSummaryDto = {
   runId: string;
@@ -40,19 +41,215 @@ export function RunSummaryView() {
   const params = useParams<{ id: string }>();
   const runId = params.id;
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-  const [showRemoved, setShowRemoved] = useState(false);
-  const [bacSearch, setBacSearch] = useState("");
-  const [minAbsDelta, setMinAbsDelta] = useState("");
-  const [brandToken, setBrandToken] = useState("");
-  const [productCode, setProductCode] = useState("");
-  const [onlyOutsideTolerance, setOnlyOutsideTolerance] = useState(false);
-  const [onlyTerminated, setOnlyTerminated] = useState(false);
-  const [onlyDuplicates, setOnlyDuplicates] = useState(false);
-  const [onlyDesync, setOnlyDesync] = useState(false);
-  const [onlyMissingOnGm, setOnlyMissingOnGm] = useState(false);
-  const [onlyMissingOnDi, setOnlyMissingOnDi] = useState(false);
+  const DEFAULTS = useMemo(
+    () => ({
+      showRemoved: false,
+      bacSearch: "",
+      minAbsDelta: "",
+      brandToken: "",
+      productCode: "",
+      onlyOutsideTolerance: true, // default ON
+      onlyTerminated: false,
+      onlyDuplicates: false,
+      onlyDesync: false,
+      onlyMissingOnGm: false,
+      onlyMissingOnDi: false,
+    }),
+    [],
+  );
+
+  const storageKey = useMemo(() => `reconex:runSummaryFilters:${runId}`, [runId]);
+  const hydratedRef = useRef(false);
+  const isSyncingUrlRef = useRef(false);
+
+  const [showRemoved, setShowRemoved] = useState(DEFAULTS.showRemoved);
+  const [bacSearch, setBacSearch] = useState(DEFAULTS.bacSearch);
+  const [minAbsDelta, setMinAbsDelta] = useState(DEFAULTS.minAbsDelta);
+  const [brandToken, setBrandToken] = useState(DEFAULTS.brandToken);
+  const [productCode, setProductCode] = useState(DEFAULTS.productCode);
+  const [onlyOutsideTolerance, setOnlyOutsideTolerance] = useState(DEFAULTS.onlyOutsideTolerance);
+  const [onlyTerminated, setOnlyTerminated] = useState(DEFAULTS.onlyTerminated);
+  const [onlyDuplicates, setOnlyDuplicates] = useState(DEFAULTS.onlyDuplicates);
+  const [onlyDesync, setOnlyDesync] = useState(DEFAULTS.onlyDesync);
+  const [onlyMissingOnGm, setOnlyMissingOnGm] = useState(DEFAULTS.onlyMissingOnGm);
+  const [onlyMissingOnDi, setOnlyMissingOnDi] = useState(DEFAULTS.onlyMissingOnDi);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
+
+  const parseBool = (raw: string | null, fallback: boolean): boolean => {
+    if (raw === null || raw === undefined) return fallback;
+    const v = String(raw).trim().toLowerCase();
+    if (v === "1" || v === "true" || v === "yes" || v === "y" || v === "on") return true;
+    if (v === "0" || v === "false" || v === "no" || v === "n" || v === "off") return false;
+    return fallback;
+  };
+
+  const applyFilterState = useCallback((next: Partial<typeof DEFAULTS>) => {
+    setShowRemoved(next.showRemoved ?? DEFAULTS.showRemoved);
+    setBacSearch(next.bacSearch ?? DEFAULTS.bacSearch);
+    setMinAbsDelta(next.minAbsDelta ?? DEFAULTS.minAbsDelta);
+    setBrandToken(next.brandToken ?? DEFAULTS.brandToken);
+    setProductCode(next.productCode ?? DEFAULTS.productCode);
+    setOnlyOutsideTolerance(next.onlyOutsideTolerance ?? DEFAULTS.onlyOutsideTolerance);
+    setOnlyTerminated(next.onlyTerminated ?? DEFAULTS.onlyTerminated);
+    setOnlyDuplicates(next.onlyDuplicates ?? DEFAULTS.onlyDuplicates);
+    setOnlyDesync(next.onlyDesync ?? DEFAULTS.onlyDesync);
+    setOnlyMissingOnGm(next.onlyMissingOnGm ?? DEFAULTS.onlyMissingOnGm);
+    setOnlyMissingOnDi(next.onlyMissingOnDi ?? DEFAULTS.onlyMissingOnDi);
+  }, [DEFAULTS]);
+
+  // Hydrate state from URL (preferred) or localStorage (fallback).
+  useEffect(() => {
+    if (hydratedRef.current) return;
+
+    const sp = searchParams;
+    const urlHasAnyKnown =
+      sp.has("showRemoved") ||
+      sp.has("bac") ||
+      sp.has("minAbsDelta") ||
+      sp.has("brand") ||
+      sp.has("productCode") ||
+      sp.has("onlyOutsideTolerance") ||
+      sp.has("onlyTerminated") ||
+      sp.has("onlyDuplicates") ||
+      sp.has("onlyDesync") ||
+      sp.has("onlyMissingOnGm") ||
+      sp.has("onlyMissingOnDi");
+
+    if (urlHasAnyKnown) {
+      applyFilterState({
+        showRemoved: parseBool(sp.get("showRemoved"), DEFAULTS.showRemoved),
+        bacSearch: sp.get("bac") ?? DEFAULTS.bacSearch,
+        minAbsDelta: sp.get("minAbsDelta") ?? DEFAULTS.minAbsDelta,
+        brandToken: sp.get("brand") ?? DEFAULTS.brandToken,
+        productCode: sp.get("productCode") ?? DEFAULTS.productCode,
+        onlyOutsideTolerance: parseBool(sp.get("onlyOutsideTolerance"), DEFAULTS.onlyOutsideTolerance),
+        onlyTerminated: parseBool(sp.get("onlyTerminated"), DEFAULTS.onlyTerminated),
+        onlyDuplicates: parseBool(sp.get("onlyDuplicates"), DEFAULTS.onlyDuplicates),
+        onlyDesync: parseBool(sp.get("onlyDesync"), DEFAULTS.onlyDesync),
+        onlyMissingOnGm: parseBool(sp.get("onlyMissingOnGm"), DEFAULTS.onlyMissingOnGm),
+        onlyMissingOnDi: parseBool(sp.get("onlyMissingOnDi"), DEFAULTS.onlyMissingOnDi),
+      });
+      hydratedRef.current = true;
+      return;
+    }
+
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<typeof DEFAULTS>;
+        applyFilterState(parsed);
+      }
+    } catch {
+      // ignore
+    } finally {
+      hydratedRef.current = true;
+    }
+  }, [DEFAULTS, applyFilterState, searchParams, storageKey]);
+
+  // Sync state -> URL + localStorage
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+
+    const nextState = {
+      showRemoved,
+      bacSearch,
+      minAbsDelta,
+      brandToken,
+      productCode,
+      onlyOutsideTolerance,
+      onlyTerminated,
+      onlyDuplicates,
+      onlyDesync,
+      onlyMissingOnGm,
+      onlyMissingOnDi,
+    };
+
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(nextState));
+    } catch {
+      // ignore
+    }
+
+    const sp = new URLSearchParams();
+    if (showRemoved !== DEFAULTS.showRemoved) sp.set("showRemoved", String(showRemoved));
+    if (bacSearch.trim()) sp.set("bac", bacSearch.trim());
+    if (minAbsDelta.trim()) sp.set("minAbsDelta", minAbsDelta.trim());
+    if (brandToken.trim()) sp.set("brand", brandToken.trim().toUpperCase());
+    if (productCode.trim()) sp.set("productCode", productCode.trim());
+
+    // Non-default toggles
+    if (onlyOutsideTolerance !== DEFAULTS.onlyOutsideTolerance) sp.set("onlyOutsideTolerance", String(onlyOutsideTolerance));
+    if (onlyTerminated !== DEFAULTS.onlyTerminated) sp.set("onlyTerminated", String(onlyTerminated));
+    if (onlyDuplicates !== DEFAULTS.onlyDuplicates) sp.set("onlyDuplicates", String(onlyDuplicates));
+    if (onlyDesync !== DEFAULTS.onlyDesync) sp.set("onlyDesync", String(onlyDesync));
+    if (onlyMissingOnGm !== DEFAULTS.onlyMissingOnGm) sp.set("onlyMissingOnGm", String(onlyMissingOnGm));
+    if (onlyMissingOnDi !== DEFAULTS.onlyMissingOnDi) sp.set("onlyMissingOnDi", String(onlyMissingOnDi));
+
+    const nextUrl = sp.toString() ? `${pathname}?${sp.toString()}` : pathname;
+    const currentUrl = searchParams.toString() ? `${pathname}?${searchParams.toString()}` : pathname;
+    if (nextUrl !== currentUrl) {
+      isSyncingUrlRef.current = true;
+      router.replace(nextUrl, { scroll: false });
+      window.setTimeout(() => {
+        isSyncingUrlRef.current = false;
+      }, 0);
+    }
+  }, [
+    DEFAULTS,
+    pathname,
+    router,
+    searchParams,
+    storageKey,
+    showRemoved,
+    bacSearch,
+    minAbsDelta,
+    brandToken,
+    productCode,
+    onlyOutsideTolerance,
+    onlyTerminated,
+    onlyDuplicates,
+    onlyDesync,
+    onlyMissingOnGm,
+    onlyMissingOnDi,
+  ]);
+
+  // Sync URL -> state when the user lands on a shared link (or manually edits URL).
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    if (isSyncingUrlRef.current) return;
+
+    const sp = searchParams;
+    const urlHasAnyKnown =
+      sp.has("showRemoved") ||
+      sp.has("bac") ||
+      sp.has("minAbsDelta") ||
+      sp.has("brand") ||
+      sp.has("productCode") ||
+      sp.has("onlyOutsideTolerance") ||
+      sp.has("onlyTerminated") ||
+      sp.has("onlyDuplicates") ||
+      sp.has("onlyDesync") ||
+      sp.has("onlyMissingOnGm") ||
+      sp.has("onlyMissingOnDi");
+    if (!urlHasAnyKnown) return;
+
+    applyFilterState({
+      showRemoved: parseBool(sp.get("showRemoved"), DEFAULTS.showRemoved),
+      bacSearch: sp.get("bac") ?? DEFAULTS.bacSearch,
+      minAbsDelta: sp.get("minAbsDelta") ?? DEFAULTS.minAbsDelta,
+      brandToken: sp.get("brand") ?? DEFAULTS.brandToken,
+      productCode: sp.get("productCode") ?? DEFAULTS.productCode,
+      onlyOutsideTolerance: parseBool(sp.get("onlyOutsideTolerance"), DEFAULTS.onlyOutsideTolerance),
+      onlyTerminated: parseBool(sp.get("onlyTerminated"), DEFAULTS.onlyTerminated),
+      onlyDuplicates: parseBool(sp.get("onlyDuplicates"), DEFAULTS.onlyDuplicates),
+      onlyDesync: parseBool(sp.get("onlyDesync"), DEFAULTS.onlyDesync),
+      onlyMissingOnGm: parseBool(sp.get("onlyMissingOnGm"), DEFAULTS.onlyMissingOnGm),
+      onlyMissingOnDi: parseBool(sp.get("onlyMissingOnDi"), DEFAULTS.onlyMissingOnDi),
+    });
+  }, [DEFAULTS, applyFilterState, searchParams]);
 
   const summaryQuery = useQuery({
     queryKey: [
@@ -91,7 +288,29 @@ export function RunSummaryView() {
 
   const columns = useMemo<MRT_ColumnDef<RunSummaryDto["bacs"][number]>[]>(
     () => [
-      { accessorKey: "bac", header: "BAC", size: 100 },
+      {
+        accessorKey: "bac",
+        header: "BAC",
+        size: 110,
+        muiTableHeadCellProps: {
+          sx: {
+            position: "sticky",
+            left: 0,
+            top: 0,
+            zIndex: 4,
+            backgroundColor: "background.paper",
+          },
+        },
+        muiTableBodyCellProps: {
+          sx: {
+            position: "sticky",
+            left: 0,
+            zIndex: 1,
+            backgroundColor: "background.paper",
+            fontWeight: 700,
+          },
+        },
+      },
       { accessorKey: "gmTotal", header: "GM total", size: 120 },
       { accessorKey: "diTotal", header: "DI total", size: 120 },
       { accessorKey: "delta", header: "Δ (DI − GM)", size: 140 },
@@ -100,17 +319,27 @@ export function RunSummaryView() {
         accessorKey: "flags",
         size: 280,
         Cell: ({ row }) => (
-          <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
-            {row.original.flags.map((f) => (
-              <Chip key={f} size="small" label={f} variant="outlined" />
-            ))}
-            {row.original.hasRemovedGroups ? <Chip size="small" color="warning" label="HAS REMOVED" /> : null}
+          <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap alignItems="center">
+            {row.original.flags
+              .filter((f) => f !== "GM_NON_BILLING_ROWS_PRESENT" && f !== "DI_NON_BILLABLE_ROWS_PRESENT")
+              // When "Only Δ variances" is enabled, the variance chip is redundant/noisy.
+              .filter((f) => !(onlyOutsideTolerance && f === "VARIANCE"))
+              .map((f) => {
+                const meta = flagChipProps(f);
+                return <Chip key={f} size="small" label={meta.label} variant={meta.variant} color={meta.color} />;
+              })}
+            {row.original.hasRemovedGroups ? (
+              (() => {
+                const meta = flagChipProps("HAS_REMOVED");
+                return <Chip size="small" label={meta.label} variant={meta.variant} color={meta.color} />;
+              })()
+            ) : null}
           </Stack>
         ),
       },
       { accessorKey: "notesCount", header: "Notes", size: 80 },
     ],
-    [],
+    [onlyOutsideTolerance],
   );
 
   const data = summaryQuery.data;
@@ -128,17 +357,7 @@ export function RunSummaryView() {
     onlyMissingOnDi;
 
   const clearFilters = () => {
-    setShowRemoved(false);
-    setBacSearch("");
-    setMinAbsDelta("");
-    setBrandToken("");
-    setProductCode("");
-    setOnlyOutsideTolerance(false);
-    setOnlyTerminated(false);
-    setOnlyDuplicates(false);
-    setOnlyDesync(false);
-    setOnlyMissingOnGm(false);
-    setOnlyMissingOnDi(false);
+    applyFilterState(DEFAULTS);
   };
 
   return (
@@ -290,6 +509,15 @@ export function RunSummaryView() {
           showAlertBanner: summaryQuery.isError,
           showProgressBars: summaryQuery.isFetching,
         }}
+        enableStickyHeader
+        muiTableHeadCellProps={{
+          sx: {
+            position: "sticky",
+            top: 0,
+            zIndex: 2,
+            backgroundColor: "background.paper",
+          },
+        }}
         muiTableContainerProps={{ sx: { overflowX: "auto" } }}
         muiToolbarAlertBannerProps={
           summaryQuery.isError ? { color: "error", children: "Failed to load summary." } : undefined
@@ -302,7 +530,8 @@ export function RunSummaryView() {
           sx: { cursor: "pointer" },
           "data-testid": `bac-row-${row.original.bac}`,
         })}
-        initialState={{ density: "comfortable" }}
+        muiPaginationProps={{ rowsPerPageOptions: [25, 50, 100, 250] }}
+        initialState={{ density: "comfortable", pagination: { pageIndex: 0, pageSize: 100 } }}
       />
     </Stack>
   );

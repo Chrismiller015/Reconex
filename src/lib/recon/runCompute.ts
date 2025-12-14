@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { parseUploadedFileToRows } from "@/lib/recon/parseUploadedFile";
 import { runCompareEngine } from "@/lib/recon/compareEngine";
+import { getPricingTable } from "@/lib/pricing/pricingTable";
+import { resolveExpectedPricing } from "@/lib/recon/pricingRules";
 
 function toDbMoney(dec: Decimal): string {
   return dec.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toFixed(2);
@@ -31,7 +33,23 @@ export async function computeAndPersistRun(runId: string, now: Date = new Date()
       throw new Error("Parsed schema types do not match expected DI/GM");
     }
 
-    const engine = runCompareEngine(diParsed.rows, gmParsed.rows);
+    const pricingTable = getPricingTable();
+    const engine = runCompareEngine(
+      diParsed.rows,
+      gmParsed.rows,
+      pricingTable
+        ? (input) => {
+            const res = resolveExpectedPricing(pricingTable, {
+              rowBrandToken: input.brandToken,
+              bacBrandTokens: input.bacBrandTokens,
+              productCode: input.productCode,
+              diProductCode: input.diProductCode,
+            });
+            if (!res) return null;
+            return { expectedUnitPrice: res.expectedUnitPrice, expectedLabel: res.ruleLabel };
+          }
+        : undefined,
+    );
     const varianceBacs = new Set(engine.bacSummaries.map((b) => b.bac));
     const groupsForVarianceBacs = engine.groups.filter((g) => varianceBacs.has(g.bac));
 

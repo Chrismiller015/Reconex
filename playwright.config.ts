@@ -17,7 +17,10 @@ export default defineConfig({
   webServer: {
     command: "npm run dev -- -p 3001",
     url: baseURL,
-    reuseExistingServer: false,
+    // Avoid Next.js dev lock conflicts when a dev server is already running
+    // (e.g. via docker/podman compose). If nothing is running, Playwright will
+    // still start the server using `command`.
+    reuseExistingServer: true,
     env: {
       // Keep local/dev simple: auth is optional in this release.
       SKIP_ENV_VALIDATION: "true",

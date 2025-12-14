@@ -42,6 +42,30 @@ export function parseDiEffectiveDate(input: unknown): NormalizationResult<Date> 
   return ok(date);
 }
 
+export function parseOptionalDateUtcStart(input: unknown): Date | null {
+  if (input === null || input === undefined) return null;
+  const raw = String(input).trim();
+  if (!raw) return null;
+
+  // Prefer MM/DD/YYYY if it matches.
+  const m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) {
+    const month = Number(m[1]);
+    const day = Number(m[2]);
+    const year = Number(m[3]);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day) {
+      return date;
+    }
+    return null;
+  }
+
+  // Fall back to Date.parse for ISO-like inputs.
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return null;
+  return utcStartOfDay(date);
+}
+
 export function expectedBillableForGmDesyncFlag(
   status: CanonicalStatus,
   effectiveDateUtc: Date,
@@ -50,10 +74,10 @@ export function expectedBillableForGmDesyncFlag(
   const today = utcTodayStart(now);
   const effective = utcStartOfDay(effectiveDateUtc);
 
-  const isBeforeToday = effective.getTime() < today.getTime();
   const isAfterToday = effective.getTime() > today.getTime();
 
-  if (status === "pending live" || status === "live") return isBeforeToday;
+  // If a product is pending/live and effective on or before today, it should be billing.
+  if (status === "pending live" || status === "live") return !isAfterToday;
   // pending cancel or cancelled/canceled => expected billable iff effective date > today
   return isAfterToday;
 }

@@ -21,7 +21,8 @@
     "compose:down": "bash ./scripts/compose.sh down --remove-orphans",
     "compose:ps": "bash ./scripts/compose.sh ps",
     "compose:logs": "bash ./scripts/compose.sh logs -f --tail=200",
-    "compose:db": "bash ./scripts/compose.sh up -d db"
+    "compose:db": "bash ./scripts/compose.sh up -d db",
+    "inspect:bac": "node ./scripts/inspect-bac.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",

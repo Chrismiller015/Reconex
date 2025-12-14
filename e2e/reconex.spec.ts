@@ -124,6 +124,9 @@ test("ReconEx core flow: upload → compare → drilldown → remove variance �
   // Show removed should reveal it
   await page.getByTestId("filters-toggle").click();
   await page.getByLabel("Show removed").check();
+  // Show removed BACs can be $0 delta; default filter is "Only Δ variances".
+  const onlyDelta = page.getByLabel("Only Δ variances");
+  if (await onlyDelta.isChecked()) await onlyDelta.uncheck();
   await expect(page.getByTestId("bac-row-000123")).toBeVisible();
 
   // Export CSV should download

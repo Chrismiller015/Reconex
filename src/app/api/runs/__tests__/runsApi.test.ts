@@ -125,7 +125,7 @@ describe("/api/runs", () => {
     expect(drill.diRows).toHaveLength(2);
     expect(drill.gmRows).toHaveLength(2);
 
-    // Find the variance group (DI_P2_C) and add note/category/remove it.
+    // Find a known variance group (DI_P2_C) and add note/category/remove it.
     const varianceGroup = drill.groups.find((g) => g.productCode === "DI_P2_C");
     expect(varianceGroup).toBeTruthy();
 
@@ -161,6 +161,22 @@ describe("/api/runs", () => {
       { params: Promise.resolve({ id: run.id }) },
     );
     expect(removeRes.status).toBe(200);
+
+    // Remove any remaining variance groups so the BAC is fully hidden by default.
+    // (New variance flags like pricing mismatch can increase the count of variance groups.)
+    for (const g of drill.groups) {
+      const info = g.flags as unknown as { isVariance?: boolean };
+      if (!info?.isVariance) continue;
+      if (g.productCode === "DI_P2_C" && g.brandToken === "C") continue; // already removed above
+      await removeGroup(
+        new Request("http://localhost", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ bac: "000123", brandToken: g.brandToken, productCode: g.productCode, isRemoved: true }),
+        }),
+        { params: Promise.resolve({ id: run.id }) },
+      );
+    }
 
     // Summary should now hide this BAC by default (all variance groups removed).
     const summaryRes2 = await summaryGet(new Request(`http://localhost/api/runs/${run.id}/summary`), {

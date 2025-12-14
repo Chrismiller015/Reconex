@@ -111,8 +111,11 @@ describe("Real fixture regression: DI Billables.csv + GM Billing File.xlsx", () 
 
     const bacsInDi = new Set(diParsed.rows.map((r) => r.bac));
     const bacsInGm = new Set(gmParsed.rows.map((r) => r.bac));
-    const expectedMissingOnGm = new Set([...bacsInDi].filter((b) => !bacsInGm.has(b)));
-    const expectedMissingOnDi = new Set([...bacsInGm].filter((b) => !bacsInDi.has(b)));
+    // Missing-side flags now only apply when the present side has billable/included rows.
+    const bacsInDiIncluded = new Set(diParsed.rows.filter((r) => r.isIncludedInTotals).map((r) => r.bac));
+    const bacsInGmIncluded = new Set(gmParsed.rows.filter((r) => r.isIncludedInTotals).map((r) => r.bac));
+    const expectedMissingOnGm = new Set([...bacsInDiIncluded].filter((b) => !bacsInGm.has(b)));
+    const expectedMissingOnDi = new Set([...bacsInGmIncluded].filter((b) => !bacsInDi.has(b)));
 
     const dupKeyCounts = new Map<string, number>();
     for (const r of gmParsed.rows) {
