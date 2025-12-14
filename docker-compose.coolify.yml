@@ -1,0 +1,82 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      args:
+        POSTGRES_USER: ${POSTGRES_USER}
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+        POSTGRES_DB: ${POSTGRES_DB}
+        DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
+        GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+        GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+        NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+        NEXTAUTH_URL: ${NEXTAUTH_URL}
+        APP_URL: ${APP_URL}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+        BREVO_API_KEY: ${BREVO_API_KEY}
+        BREVO_SENDER_EMAIL: ${BREVO_SENDER_EMAIL}
+        SOKETI_APP_ID: ${SOKETI_APP_ID}
+        SOKETI_KEY: ${SOKETI_KEY}
+        SOKETI_SECRET: ${SOKETI_SECRET}
+        SOKETI_HOST: ${SOKETI_HOST}
+        SOKETI_PORT: ${SOKETI_PORT}
+        SOKETI_USE_TLS: ${SOKETI_USE_TLS}
+        NEXT_PUBLIC_SOKETI_KEY: ${NEXT_PUBLIC_SOKETI_KEY}
+        NEXT_PUBLIC_SOKETI_HOST: ${NEXT_PUBLIC_SOKETI_HOST}
+        NEXT_PUBLIC_SOKETI_PORT: ${NEXT_PUBLIC_SOKETI_PORT}
+        NEXT_PUBLIC_SOKETI_USE_TLS: ${NEXT_PUBLIC_SOKETI_USE_TLS}
+        SKIP_ENV_VALIDATION: ${SKIP_ENV_VALIDATION}
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
+      APP_URL: ${APP_URL}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      BREVO_API_KEY: ${BREVO_API_KEY}
+      BREVO_SENDER_EMAIL: ${BREVO_SENDER_EMAIL}
+      SOKETI_APP_ID: ${SOKETI_APP_ID}
+      SOKETI_KEY: ${SOKETI_KEY}
+      SOKETI_SECRET: ${SOKETI_SECRET}
+      SOKETI_HOST: ${SOKETI_HOST}
+      SOKETI_PORT: ${SOKETI_PORT}
+      SOKETI_USE_TLS: ${SOKETI_USE_TLS}
+      NEXT_PUBLIC_SOKETI_KEY: ${NEXT_PUBLIC_SOKETI_KEY}
+      NEXT_PUBLIC_SOKETI_HOST: ${NEXT_PUBLIC_SOKETI_HOST}
+      NEXT_PUBLIC_SOKETI_PORT: ${NEXT_PUBLIC_SOKETI_PORT}
+      NEXT_PUBLIC_SOKETI_USE_TLS: ${NEXT_PUBLIC_SOKETI_USE_TLS}
+      SKIP_ENV_VALIDATION: ${SKIP_ENV_VALIDATION}
+    command: ["sh", "-c", "npx prisma migrate deploy && node server.js"]
+    expose:
+      - "3000"
+    restart: always
+
+volumes:
+  postgres-data:
+    driver: local

@@ -1,0 +1,58 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: reconex-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: reconex
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  app:
+    build:
+      context: .
+      args:
+        DATABASE_URL: ${DATABASE_URL}
+        GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+        GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+        NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+        NEXTAUTH_URL: ${NEXTAUTH_URL}
+        APP_URL: ${APP_URL}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+        BREVO_API_KEY: ${BREVO_API_KEY}
+        BREVO_SENDER_EMAIL: ${BREVO_SENDER_EMAIL}
+        SOKETI_APP_ID: ${SOKETI_APP_ID}
+        SOKETI_KEY: ${SOKETI_KEY}
+        SOKETI_SECRET: ${SOKETI_SECRET}
+        SOKETI_HOST: ${SOKETI_HOST}
+        SOKETI_PORT: ${SOKETI_PORT}
+        SOKETI_USE_TLS: ${SOKETI_USE_TLS}
+        NEXT_PUBLIC_SOKETI_KEY: ${NEXT_PUBLIC_SOKETI_KEY}
+        NEXT_PUBLIC_SOKETI_HOST: ${NEXT_PUBLIC_SOKETI_HOST}
+        NEXT_PUBLIC_SOKETI_PORT: ${NEXT_PUBLIC_SOKETI_PORT}
+        NEXT_PUBLIC_SOKETI_USE_TLS: ${NEXT_PUBLIC_SOKETI_USE_TLS}
+        SKIP_ENV_VALIDATION: ${SKIP_ENV_VALIDATION:-false}
+    container_name: reconex-app
+    depends_on:
+      - db
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/reconex?schema=public
+      NEXTAUTH_URL: http://localhost:3000
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+    command: npm run dev
+    stdin_open: true
+    tty: true
+
+volumes:
+  postgres-data:
