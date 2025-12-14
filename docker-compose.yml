@@ -6,9 +6,9 @@ services:
     container_name: reconex-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: reconex
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-reconex}
     ports:
       - "5433:5432"
     volumes:
@@ -37,19 +37,25 @@ services:
         NEXT_PUBLIC_SOKETI_HOST: ${NEXT_PUBLIC_SOKETI_HOST}
         NEXT_PUBLIC_SOKETI_PORT: ${NEXT_PUBLIC_SOKETI_PORT}
         NEXT_PUBLIC_SOKETI_USE_TLS: ${NEXT_PUBLIC_SOKETI_USE_TLS}
-        SKIP_ENV_VALIDATION: ${SKIP_ENV_VALIDATION:-false}
+        SKIP_ENV_VALIDATION: ${SKIP_ENV_VALIDATION:-true}
     container_name: reconex-app
+    # When bind-mounting the repo into /app for dev, run as the host UID/GID
+    # so Next/Turbopack can create its lockfiles/caches without permission errors.
+    user: "1000:1000"
     depends_on:
       - db
-    env_file:
-      - .env
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/reconex?schema=public
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-reconex}?schema=public
       NEXTAUTH_URL: http://localhost:3000
+      SKIP_ENV_VALIDATION: "true"
+      RECONEX_MAX_UPLOAD_BYTES: ${RECONEX_MAX_UPLOAD_BYTES:-52428800}
+      RECONEX_STORAGE_DIR: ${RECONEX_STORAGE_DIR:-/app/.uploads}
     ports:
       - "3000:3000"
     volumes:
-      - .:/app
+      # Podman on Fedora/Bazzite typically needs SELinux relabeling for bind mounts.
+      - .:/app:Z
     command: npm run dev
     stdin_open: true
     tty: true

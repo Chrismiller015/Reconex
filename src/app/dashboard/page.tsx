@@ -3,7 +3,7 @@ import { Card, CardContent, Container, Stack, Typography } from "@mui/material";
 
 export default function DashboardPage() {
   return (
-    <Container component="main" sx={{ py: 6 }}>
+    <Container component="main" sx={{ py: { xs: 3, md: 6 } }}>
       <Stack spacing={4}>
         <Stack spacing={1}>
           <Typography variant="h3" fontWeight={700}>

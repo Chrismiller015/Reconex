@@ -2,7 +2,7 @@
 
 import { CacheProvider } from "@emotion/react";
 import createCache, { type Options } from "@emotion/cache";
-import { PropsWithChildren, useMemo, useState } from "react";
+import { PropsWithChildren, useState } from "react";
 import { useServerInsertedHTML } from "next/navigation";
 
 type EmotionCacheProviderProps = PropsWithChildren<{

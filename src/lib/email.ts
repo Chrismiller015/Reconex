@@ -2,8 +2,10 @@ import * as Brevo from "@getbrevo/brevo";
 import { env } from "@/env.mjs";
 import { logger } from "@/lib/logger";
 
-const transactionalApi = new Brevo.TransactionalEmailsApi();
-transactionalApi.setApiKey(Brevo.TransactionalEmailsApiApiKeys.apiKey, env.BREVO_API_KEY);
+const transactionalApi = env.BREVO_API_KEY ? new Brevo.TransactionalEmailsApi() : null;
+if (transactionalApi && env.BREVO_API_KEY) {
+  transactionalApi.setApiKey(Brevo.TransactionalEmailsApiApiKeys.apiKey, env.BREVO_API_KEY);
+}
 
 export type SendTransactionalEmailInput = {
   to: string;
@@ -12,6 +14,10 @@ export type SendTransactionalEmailInput = {
 };
 
 export const sendTransactionalEmail = async ({ to, subject, htmlContent }: SendTransactionalEmailInput) => {
+  if (!transactionalApi) {
+    logger.warn({ to }, "Brevo is not configured; skipping transactional email");
+    return;
+  }
   try {
     await transactionalApi.sendTransacEmail({
       sender: {

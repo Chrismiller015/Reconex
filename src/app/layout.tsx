@@ -4,8 +4,6 @@ import "./globals.css";
 import "@/env.mjs";
 import { AppProviders } from "@/components/layout/AppProviders";
 import { EmotionCacheProvider } from "@/components/layout/EmotionCacheProvider";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/options";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -27,13 +25,11 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const session = await getServerSession(authOptions);
-
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <EmotionCacheProvider>
-          <AppProviders session={session}>{children}</AppProviders>
+          <AppProviders>{children}</AppProviders>
         </EmotionCacheProvider>
       </body>
     </html>

@@ -5,9 +5,11 @@ import Link from "next/link";
 import { useUiStore } from "@/store/uiStore";
 
 const navLinks = [
-  { label: "Home", href: "/" },
-  { label: "Dashboard", href: "/dashboard" },
-  { label: "Components", href: "/components" },
+  { label: "Welcome", href: "/" },
+  { label: "File Library", href: "/files" },
+  { label: "New Compare", href: "/compare/new" },
+  { label: "Compare Runs", href: "/runs" },
+  { label: "Settings", href: "/settings" },
 ];
 
 export const AppSidebar = () => {

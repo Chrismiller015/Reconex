@@ -1,11 +1,9 @@
 "use client";
 
 import MenuIcon from "@mui/icons-material/Menu";
-import { AppBar, Avatar, Box, IconButton, Stack, Toolbar, Tooltip, Typography } from "@mui/material";
-import { useSession, signIn, signOut } from "next-auth/react";
+import { AppBar, Box, IconButton, Stack, Toolbar, Tooltip, Typography } from "@mui/material";
 import { useUiStore } from "@/store/uiStore";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import { Button } from "@/components/ui/Button";
 import { LinkButton } from "@/components/ui/LinkButton";
 import Link from "next/link";
 
@@ -34,14 +32,12 @@ const PlaceholderIcon = () => (
 
 export const AppHeader = () => {
   const toggleSidebar = useUiStore((state) => state.toggleSidebar);
-  const { data: session, status } = useSession();
-
-  const displayName = session?.user?.name ?? session?.user?.email ?? "Unknown user";
-  const avatarSrc = session?.user?.image ?? undefined;
   const navLinks = [
-    { label: "Home", href: "/" },
-    { label: "Dashboard", href: "/dashboard" },
-    { label: "Components", href: "/components" },
+    { label: "Welcome", href: "/" },
+    { label: "File Library", href: "/files" },
+    { label: "New Compare", href: "/compare/new" },
+    { label: "Compare Runs", href: "/runs" },
+    { label: "Settings", href: "/settings" },
   ];
 
   return (
@@ -90,32 +86,6 @@ export const AppHeader = () => {
 
         <Stack direction="row" spacing={1.5} alignItems="center">
           <ThemeToggle />
-          {status === "authenticated" ? (
-            <Stack direction="row" spacing={1} alignItems="center">
-              <Avatar
-                src={avatarSrc}
-                alt={displayName}
-                sx={{ width: 36, height: 36, border: 1, borderColor: "divider" }}
-              >
-                {(displayName ?? "?").charAt(0).toUpperCase()}
-              </Avatar>
-              <Typography variant="body2" sx={{ maxWidth: 160 }} noWrap>
-                {displayName}
-              </Typography>
-              <Button
-                size="small"
-                variant="outlined"
-                color="secondary"
-                onClick={() => signOut({ callbackUrl: "/" })}
-              >
-                Sign out
-              </Button>
-            </Stack>
-          ) : (
-            <Button size="small" variant="contained" onClick={() => signIn("google")}>
-              Sign in
-            </Button>
-          )}
         </Stack>
       </Toolbar>
     </AppBar>

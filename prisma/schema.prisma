@@ -66,3 +66,88 @@ model Post {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+enum UploadedSchemaType {
+  GM
+  DI
+  UNKNOWN
+}
+
+enum CompareRunStatus {
+  PENDING
+  RUNNING
+  COMPLETE
+  FAILED
+}
+
+model UploadedFile {
+  id                   String             @id @default(cuid())
+  originalName         String
+  storedPath           String
+  mimeType             String?
+  extension            String?
+  sizeBytes            Int
+  sha256               String
+  uploadedAt           DateTime           @default(now())
+  uploadedBy           String?
+  rowCount             Int
+  schemaType           UploadedSchemaType
+  requiredFieldsPresent Json
+  missingFields        Json
+
+  runsAsDi CompareRun[] @relation("DiFile")
+  runsAsGm CompareRun[] @relation("GmFile")
+
+  @@index([uploadedAt])
+}
+
+model CompareRun {
+  id         String           @id @default(cuid())
+  diFileId   String
+  gmFileId   String
+  status     CompareRunStatus @default(PENDING)
+  errorMessage String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  lastRunAt  DateTime?
+
+  diFile UploadedFile @relation("DiFile", fields: [diFileId], references: [id], onDelete: Restrict)
+  gmFile UploadedFile @relation("GmFile", fields: [gmFileId], references: [id], onDelete: Restrict)
+
+  varianceGroups VarianceGroup[]
+
+  @@index([updatedAt])
+}
+
+model VarianceGroup {
+  id          String     @id @default(cuid())
+  runId       String
+  bac         String
+  brandToken  String
+  productCode String
+  diAmount    Decimal
+  gmAmount    Decimal
+  delta       Decimal
+  flags       Json
+  isRemoved   Boolean    @default(false)
+  category    String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  run   CompareRun     @relation(fields: [runId], references: [id], onDelete: Cascade)
+  notes VarianceNote[]
+
+  @@unique([runId, bac, brandToken, productCode])
+  @@index([runId, bac])
+}
+
+model VarianceNote {
+  id              String       @id @default(cuid())
+  varianceGroupId String
+  noteText        String
+  author          String?
+  createdAt       DateTime     @default(now())
+
+  varianceGroup VarianceGroup @relation(fields: [varianceGroupId], references: [id], onDelete: Cascade)
+  @@index([varianceGroupId])
+}

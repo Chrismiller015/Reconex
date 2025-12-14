@@ -42,3 +42,11 @@ next-env.d.ts
 
 *storybook.log
 storybook-static
+
+# ReconEx local storage (uploaded files)
+/storage/uploads
+
+# Playwright artifacts
+/.playwright
+/playwright-report
+/test-results
