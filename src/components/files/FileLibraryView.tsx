@@ -1,9 +1,22 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MaterialReactTable, type MRT_ColumnDef } from "material-react-table";
-import { Alert, Box, Button as MuiButton, Chip, Stack, Tooltip, Typography } from "@mui/material";
+import {
+  Alert,
+  Box,
+  Button as MuiButton,
+  Card,
+  CardContent,
+  Chip,
+  Container,
+  Divider,
+  LinearProgress,
+  Stack,
+  Tooltip,
+  Typography,
+} from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import DownloadIcon from "@mui/icons-material/Download";
 import { useSnackbar } from "notistack";
@@ -39,6 +52,11 @@ export function FileLibraryView() {
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadQueue, setUploadQueue] = useState<
+    Array<{ key: string; file: File; status: "queued" | "uploading" | "success" | "error"; error?: string }>
+  >([]);
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
 
   const filesQuery = useQuery({
     queryKey: ["files"],
@@ -63,18 +81,47 @@ export function FileLibraryView() {
       }
       return json as UploadedFileDto;
     },
-    onSuccess: async (uploaded) => {
-      if (uploaded.schemaType === "UNKNOWN") {
-        enqueueSnackbar("Uploaded, but schema could not be detected (check missing required fields).", { variant: "warning" });
-      } else {
-        enqueueSnackbar("Upload complete", { variant: "success" });
-      }
-      await queryClient.invalidateQueries({ queryKey: ["files"] });
-    },
-    onError: (error) => {
-      enqueueSnackbar(error instanceof Error ? error.message : "Upload failed", { variant: "error" });
-    },
   });
+
+  const uploadMany = useCallback(
+    async (files: File[]) => {
+      if (!files.length) return;
+      const items = files.map((file) => ({
+        key: `${file.name}::${file.size}::${file.lastModified}`,
+        file,
+        status: "queued" as const,
+      }));
+      setUploadQueue((prev) => [...items, ...prev]);
+
+      if (isProcessingQueue) return;
+      setIsProcessingQueue(true);
+      try {
+        let okCount = 0;
+        let failCount = 0;
+        for (const item of items) {
+          setUploadQueue((prev) => prev.map((x) => (x.key === item.key ? { ...x, status: "uploading", error: undefined } : x)));
+          try {
+            const uploaded = await uploadMutation.mutateAsync(item.file);
+            okCount += 1;
+            if (uploaded.schemaType === "UNKNOWN") {
+              enqueueSnackbar(`Uploaded ${uploaded.originalName}, but schema could not be detected.`, { variant: "warning" });
+            }
+            setUploadQueue((prev) => prev.map((x) => (x.key === item.key ? { ...x, status: "success" } : x)));
+          } catch (e) {
+            failCount += 1;
+            const msg = e instanceof Error ? e.message : "Upload failed";
+            setUploadQueue((prev) => prev.map((x) => (x.key === item.key ? { ...x, status: "error", error: msg } : x)));
+          }
+        }
+        await queryClient.invalidateQueries({ queryKey: ["files"] });
+        if (okCount) enqueueSnackbar(`Uploaded ${okCount} file(s)`, { variant: "success" });
+        if (failCount) enqueueSnackbar(`${failCount} upload(s) failed`, { variant: "error" });
+      } finally {
+        setIsProcessingQueue(false);
+      }
+    },
+    [enqueueSnackbar, isProcessingQueue, queryClient, uploadMutation],
+  );
 
   const columns = useMemo<MRT_ColumnDef<UploadedFileDto>[]>(
     () => [
@@ -154,7 +201,8 @@ export function FileLibraryView() {
   );
 
   return (
-    <Stack spacing={2}>
+    <Container component="main" sx={{ py: { xs: 3, md: 6 } }}>
+      <Stack spacing={2}>
       <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ xs: "stretch", md: "center" }}>
         <Box flex={1}>
           <Typography variant="h4" fontWeight={800}>
@@ -170,21 +218,22 @@ export function FileLibraryView() {
           data-testid="file-upload-input"
           type="file"
           hidden
+          multiple
           accept=".csv,.xlsx,.xlsm,.xlsb"
           onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (!file) return;
-            uploadMutation.mutate(file);
+            const files = Array.from(e.target.files ?? []);
+            if (!files.length) return;
+            void uploadMany(files);
             e.currentTarget.value = "";
           }}
         />
         <MuiButton
           variant="contained"
           startIcon={<CloudUploadIcon />}
-          disabled={uploadMutation.isPending}
+          disabled={isProcessingQueue}
           onClick={() => fileInputRef.current?.click()}
         >
-          Upload file
+          Upload files
         </MuiButton>
       </Stack>
 
@@ -192,6 +241,115 @@ export function FileLibraryView() {
         Supported file types: <strong>CSV</strong>, <strong>XLSX/XLSM/XLSB</strong>. If a file shows as <strong>UNKNOWN</strong>, hover the chip to see which required
         headers are missing.
       </Alert>
+
+      <Card
+        variant="outlined"
+        data-testid="file-dropzone"
+        onDragEnter={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsDragging(true);
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsDragging(true);
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsDragging(false);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsDragging(false);
+          const files = Array.from(e.dataTransfer.files ?? []).filter((f) => f.size > 0);
+          if (!files.length) return;
+          void uploadMany(files);
+        }}
+        sx={{
+          borderStyle: "dashed",
+          borderWidth: 2,
+          borderColor: isDragging ? "primary.main" : "divider",
+          backgroundColor: isDragging ? "action.hover" : "background.paper",
+          transition: "border-color 120ms ease, background-color 120ms ease",
+        }}
+      >
+        <CardContent sx={{ py: 3 }}>
+          <Stack spacing={0.5} alignItems="center">
+            <CloudUploadIcon color={isDragging ? "primary" : "action"} />
+            <Typography variant="subtitle1" fontWeight={800}>
+              Drag & drop DI/GM files here
+            </Typography>
+            <Typography variant="body2" color="text.secondary" textAlign="center">
+              Or click “Upload files” to select multiple at once.
+            </Typography>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      {uploadQueue.length ? (
+        <Card variant="outlined">
+          <CardContent>
+            <Stack spacing={1}>
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "stretch", sm: "center" }}>
+                <Typography variant="subtitle1" fontWeight={800} sx={{ flex: 1 }}>
+                  Upload queue
+                </Typography>
+                <MuiButton
+                  size="small"
+                  variant="outlined"
+                  disabled={!uploadQueue.some((x) => x.status === "error") || isProcessingQueue}
+                  onClick={() => {
+                    const failed = uploadQueue.filter((x) => x.status === "error").map((x) => x.file);
+                    void uploadMany(failed);
+                  }}
+                >
+                  Retry failed
+                </MuiButton>
+                <MuiButton
+                  size="small"
+                  variant="text"
+                  disabled={isProcessingQueue}
+                  onClick={() => setUploadQueue((prev) => prev.filter((x) => x.status !== "success"))}
+                >
+                  Clear successful
+                </MuiButton>
+              </Stack>
+              {isProcessingQueue ? <LinearProgress /> : null}
+              <Divider />
+              <Stack spacing={0.75}>
+                {uploadQueue.slice(0, 12).map((u) => (
+                  <Stack key={u.key} direction="row" spacing={1} alignItems="center">
+                    <Typography variant="body2" sx={{ flex: 1 }} noWrap title={u.file.name}>
+                      {u.file.name}
+                    </Typography>
+                    <Chip
+                      size="small"
+                      label={u.status}
+                      color={u.status === "success" ? "success" : u.status === "error" ? "error" : u.status === "uploading" ? "info" : "default"}
+                      variant={u.status === "queued" ? "outlined" : "filled"}
+                    />
+                    {u.status === "error" ? (
+                      <Tooltip title={u.error ?? "Upload failed"}>
+                        <Typography variant="caption" color="error" sx={{ maxWidth: 220 }} noWrap>
+                          {u.error ?? "Upload failed"}
+                        </Typography>
+                      </Tooltip>
+                    ) : null}
+                  </Stack>
+                ))}
+                {uploadQueue.length > 12 ? (
+                  <Typography variant="caption" color="text.secondary">
+                    Showing 12 of {uploadQueue.length} queued items.
+                  </Typography>
+                ) : null}
+              </Stack>
+            </Stack>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <MaterialReactTable
         columns={columns}
@@ -219,7 +377,10 @@ export function FileLibraryView() {
         )}
         initialState={{ density: "comfortable" }}
       />
-    </Stack>
+      </Stack>
+    </Container>
   );
 }
+
+
 
