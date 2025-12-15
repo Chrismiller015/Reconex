@@ -1,20 +1,24 @@
 import type { Metadata } from "next";
-import { Inter, Roboto_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import "@/env.mjs";
 import { AppProviders } from "@/components/layout/AppProviders";
 import { EmotionCacheProvider } from "@/components/layout/EmotionCacheProvider";
 
-// Keep the historical CSS variable names (`--font-geist-*`) so existing global CSS/theme
-// continue to work, while using fonts that are supported by Next.js 14 builds.
-const appSans = Inter({
+// Self-hosted fonts to avoid 3-4 minute network timeouts during Docker builds in Coolify.
+// Keep the historical CSS variable names (`--font-geist-*`) so existing global CSS/theme continue to work.
+const appSans = localFont({
+  src: "../../public/fonts/inter-latin.woff2",
   variable: "--font-geist-sans",
-  subsets: ["latin"],
+  display: "swap",
+  fallback: ["system-ui", "arial"],
 });
 
-const appMono = Roboto_Mono({
+const appMono = localFont({
+  src: "../../public/fonts/roboto-mono-latin.woff2",
   variable: "--font-geist-mono",
-  subsets: ["latin"],
+  display: "swap",
+  fallback: ["monospace"],
 });
 
 export const metadata: Metadata = {
