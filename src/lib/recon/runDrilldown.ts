@@ -4,7 +4,8 @@ import { parseUploadedFileToRows } from "@/lib/recon/parseUploadedFile";
 import { MONEY_TOLERANCE } from "@/lib/recon/money";
 import type { DiRowNormalized, GmRowNormalized } from "@/lib/recon/rows";
 import type { BrandToken } from "@/lib/recon/types";
-import { getPricingTable } from "@/lib/pricing/pricingTable";
+import type { PricingTable } from "@/lib/pricing/pricingTable";
+import { getActivePricingTable, getPricingTableForVersion } from "@/lib/pricing/pricingTableDb";
 import { moneyMismatch, resolveExpectedPricing } from "@/lib/recon/pricingRules";
 import { parseProductCode } from "@/lib/recon/productCode";
 
@@ -57,7 +58,14 @@ function fmtDate(d: Date | null): string {
 export type BacDrilldownDto = {
   runId: string;
   bac: string;
-  header: { gmTotal: string; diTotal: string; delta: string; flags: string[]; hasVariance: boolean };
+  header: {
+    gmTotal: string;
+    diTotal: string;
+    delta: string;
+    flags: string[];
+    hasVariance: boolean;
+    pricing: { mode: "run" | "latest"; versionId: string | null };
+  };
   groups: Array<{
     id: string;
     bac: string;
@@ -67,7 +75,9 @@ export type BacDrilldownDto = {
     gmAmount: string;
     delta: string;
     isRemoved: boolean;
+    isBugged: boolean;
     category: string | null;
+    status: string;
     flags: unknown;
     context: {
       displayName: string | null;
@@ -108,6 +118,8 @@ export type BacDrilldownDto = {
     notes: Array<{ id: string; noteText: string; author: string | null; createdAt: Date }>;
   }>;
   diRows: Array<{
+    /** Stable identifier within this BAC response. */
+    rowKey: string;
     source: DiRowNormalized["source"];
     raw: DiRowNormalized["raw"];
     bac: DiRowNormalized["bac"];
@@ -115,12 +127,18 @@ export type BacDrilldownDto = {
     productCode: DiRowNormalized["productCode"];
     status: DiRowNormalized["status"];
     effectiveDateUtc: string;
+    lastUpdatedDateUtc: string | null;
     dealerPrice: string;
+    quantity: number;
     isIncludedInTotals: DiRowNormalized["isIncludedInTotals"];
     exclusionReasons: DiRowNormalized["exclusionReasons"];
+    /** Convenience for UI row selection; derived from DI raw. */
+    orderItemId: string | null;
     matchKey: string;
   }>;
   gmRows: Array<{
+    /** Stable identifier within this BAC response. */
+    rowKey: string;
     source: GmRowNormalized["source"];
     raw: GmRowNormalized["raw"];
     bac: GmRowNormalized["bac"];
@@ -128,7 +146,9 @@ export type BacDrilldownDto = {
     productBrand: GmRowNormalized["productBrand"];
     status: GmRowNormalized["status"];
     effectiveDateUtc: string;
+    lastUpdatedDateUtc: string | null;
     dealerCost: string;
+    quantity: number;
     isBilling: GmRowNormalized["isBilling"];
     isDesync: GmRowNormalized["isDesync"];
     expectedBillableForDesync: GmRowNormalized["expectedBillableForDesync"];
@@ -139,7 +159,11 @@ export type BacDrilldownDto = {
   }>;
 };
 
-export async function getBacDrilldown(runId: string, bac: string): Promise<BacDrilldownDto | null> {
+export async function getBacDrilldown(
+  runId: string,
+  bac: string,
+  options: { pricingMode?: "run" | "latest" } = {},
+): Promise<BacDrilldownDto | null> {
   const run = await prisma.compareRun.findUnique({
     where: { id: runId },
     include: { diFile: true, gmFile: true },
@@ -158,6 +182,7 @@ export async function getBacDrilldown(runId: string, bac: string): Promise<BacDr
   for (const g of groups) {
     const info = g.flags as unknown as { flags?: string[]; isVariance?: boolean };
     for (const f of info?.flags ?? []) flags.add(f);
+    if (g.isBugged) flags.add("DPE_BUGGED");
     if (g.isRemoved) continue;
     gmTotal = gmTotal.add(toDec(g.gmAmount));
     diTotal = diTotal.add(toDec(g.diAmount));
@@ -237,7 +262,10 @@ export async function getBacDrilldown(runId: string, bac: string): Promise<BacDr
     diAccountCountsByBacBrand.set(brandKey, m2);
   }
 
-  const diRows = diRowsFull.map((r) => ({
+  const diRows = diRowsFull.map((r, idx) => {
+    const sf = diSfForRow(r);
+    return {
+      rowKey: `DI:${idx}`,
       source: r.source,
       raw: r.raw,
       bac: r.bac,
@@ -245,13 +273,18 @@ export async function getBacDrilldown(runId: string, bac: string): Promise<BacDr
       productCode: r.productCode,
       status: r.status,
       effectiveDateUtc: r.effectiveDateUtc.toISOString(),
+      lastUpdatedDateUtc: r.lastUpdatedDateUtc ? r.lastUpdatedDateUtc.toISOString() : null,
       dealerPrice: r.dealerPrice.toFixed(2),
+      quantity: r.quantity ?? 0,
       isIncludedInTotals: r.isIncludedInTotals,
       exclusionReasons: r.exclusionReasons,
+      orderItemId: sf.orderItemId ?? null,
       matchKey: `${r.brandToken}::${r.productCode}`,
-    }));
+    };
+  });
 
-  const gmRows = gmRowsFull.map((r) => ({
+  const gmRows = gmRowsFull.map((r, idx) => ({
+      rowKey: `GM:${idx}`,
       source: r.source,
       raw: r.raw,
       bac: r.bac,
@@ -259,7 +292,9 @@ export async function getBacDrilldown(runId: string, bac: string): Promise<BacDr
       productBrand: r.productBrand,
       status: r.status,
       effectiveDateUtc: r.effectiveDateUtc.toISOString(),
+      lastUpdatedDateUtc: r.lastUpdatedDateUtc ? r.lastUpdatedDateUtc.toISOString() : null,
       dealerCost: r.dealerCost.toFixed(2),
+      quantity: r.quantity ?? 0,
       isBilling: r.isBilling,
       isDesync: r.isDesync,
       expectedBillableForDesync: r.expectedBillableForDesync,
@@ -280,7 +315,24 @@ export async function getBacDrilldown(runId: string, bac: string): Promise<BacDr
     gmByKey.set(k, [...(gmByKey.get(k) ?? []), r]);
   }
 
-  const pricingTable = getPricingTable();
+  const pricingMode: "run" | "latest" = options.pricingMode === "latest" ? "latest" : "run";
+  let pricingTable: PricingTable | null = null;
+  let pricingVersionId: string | null = null;
+  if (pricingMode === "latest") {
+    const active = await getActivePricingTable().catch(() => null);
+    pricingTable = active?.table ?? null;
+    pricingVersionId = active?.version.id ?? null;
+  } else {
+    if (run.pricingTableVersionId) {
+      pricingVersionId = run.pricingTableVersionId;
+      pricingTable = await getPricingTableForVersion(run.pricingTableVersionId).catch(() => null);
+    }
+    if (!pricingTable) {
+      const active = await getActivePricingTable().catch(() => null);
+      pricingTable = active?.table ?? null;
+      pricingVersionId = pricingVersionId ?? active?.version.id ?? null;
+    }
+  }
   const bacBrandTokens: BrandToken[] = [
     ...new Set<BrandToken>([...diRowsFull.map((r) => r.brandToken), ...gmRowsFull.map((r) => r.productBrand)]),
   ];
@@ -294,10 +346,12 @@ export async function getBacDrilldown(runId: string, bac: string): Promise<BacDr
       delta: delta.toFixed(2),
       flags: [...flags],
       hasVariance,
+      pricing: { mode: pricingMode, versionId: pricingVersionId },
     },
     groups: groups.map((g) => {
       const info = g.flags as unknown as { flags?: string[]; isVariance?: boolean };
       const flagCodes = new Set<string>(info?.flags ?? []);
+      if (g.isBugged) flagCodes.add("DPE_BUGGED");
 
       const k = `${g.brandToken}::${g.productCode}`;
       const diGroup = diByKey.get(k) ?? [];
@@ -334,6 +388,10 @@ export async function getBacDrilldown(runId: string, bac: string): Promise<BacDr
       const reasons: string[] = [];
       if (info?.isVariance) {
         reasons.push(`Dollar variance: DI ${diTotalDec.toFixed(2)} vs GM ${gmTotalDec.toFixed(2)} (Δ ${toDec(g.delta).toFixed(2)})`);
+      }
+
+      if (g.isBugged) {
+        reasons.push("Marked DPE bugged: attempted DPE updates could not be applied.");
       }
 
       if (g.isRemoved) {
@@ -467,8 +525,13 @@ export async function getBacDrilldown(runId: string, bac: string): Promise<BacDr
         gmAmount: gmTotalDec.toFixed(2),
         delta: toDec(g.delta).toFixed(2),
         isRemoved: g.isRemoved,
+        isBugged: g.isBugged,
         category: g.category,
-        flags: g.flags,
+        status: g.status,
+        flags: {
+          flags: [...flagCodes],
+          isVariance: info?.isVariance,
+        },
         context: {
           displayName,
           salesforce: {
@@ -506,4 +569,6 @@ export async function getBacDrilldown(runId: string, bac: string): Promise<BacDr
     gmRows,
   };
 }
+
+
 

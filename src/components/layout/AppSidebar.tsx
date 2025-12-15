@@ -6,6 +6,7 @@ import { useUiStore } from "@/store/uiStore";
 
 const navLinks = [
   { label: "Welcome", href: "/" },
+  { label: "How To Use", href: "/how-to-use" },
   { label: "File Library", href: "/files" },
   { label: "New Compare", href: "/compare/new" },
   { label: "Compare Runs", href: "/runs" },

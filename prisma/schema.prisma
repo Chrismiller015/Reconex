@@ -10,16 +10,18 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(cuid())
-  name          String?
-  email         String?  @unique
-  emailVerified DateTime?
-  image         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  posts         Post[]
-  accounts      Account[]
-  sessions      Session[]
+  id                     String                   @id @default(cuid())
+  name                   String?
+  email                  String?                  @unique
+  emailVerified          DateTime?
+  image                  String?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  posts                  Post[]
+  accounts               Account[]
+  sessions               Session[]
+  PricingTableVersion    PricingTableVersion[]
+  PricingTableAuditEvent PricingTableAuditEvent[]
 }
 
 model Account {
@@ -81,19 +83,19 @@ enum CompareRunStatus {
 }
 
 model UploadedFile {
-  id                   String             @id @default(cuid())
-  originalName         String
-  storedPath           String
-  mimeType             String?
-  extension            String?
-  sizeBytes            Int
-  sha256               String
-  uploadedAt           DateTime           @default(now())
-  uploadedBy           String?
-  rowCount             Int
-  schemaType           UploadedSchemaType
+  id                    String             @id @default(cuid())
+  originalName          String
+  storedPath            String
+  mimeType              String?
+  extension             String?
+  sizeBytes             Int
+  sha256                String
+  uploadedAt            DateTime           @default(now())
+  uploadedBy            String?
+  rowCount              Int
+  schemaType            UploadedSchemaType
   requiredFieldsPresent Json
-  missingFields        Json
+  missingFields         Json
 
   runsAsDi CompareRun[] @relation("DiFile")
   runsAsGm CompareRun[] @relation("GmFile")
@@ -102,25 +104,28 @@ model UploadedFile {
 }
 
 model CompareRun {
-  id         String           @id @default(cuid())
-  diFileId   String
-  gmFileId   String
-  status     CompareRunStatus @default(PENDING)
-  errorMessage String?
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
-  lastRunAt  DateTime?
+  id                    String           @id @default(cuid())
+  diFileId              String
+  gmFileId              String
+  status                CompareRunStatus @default(PENDING)
+  errorMessage          String?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  lastRunAt             DateTime?
+  pricingTableVersionId String?
 
-  diFile UploadedFile @relation("DiFile", fields: [diFileId], references: [id], onDelete: Restrict)
-  gmFile UploadedFile @relation("GmFile", fields: [gmFileId], references: [id], onDelete: Restrict)
+  diFile              UploadedFile         @relation("DiFile", fields: [diFileId], references: [id], onDelete: Restrict)
+  gmFile              UploadedFile         @relation("GmFile", fields: [gmFileId], references: [id], onDelete: Restrict)
+  pricingTableVersion PricingTableVersion? @relation(fields: [pricingTableVersionId], references: [id], onDelete: SetNull)
 
   varianceGroups VarianceGroup[]
 
   @@index([updatedAt])
+  @@index([pricingTableVersionId])
 }
 
 model VarianceGroup {
-  id          String     @id @default(cuid())
+  id          String   @id @default(cuid())
   runId       String
   bac         String
   brandToken  String
@@ -129,10 +134,12 @@ model VarianceGroup {
   gmAmount    Decimal
   delta       Decimal
   flags       Json
-  isRemoved   Boolean    @default(false)
+  isRemoved   Boolean  @default(false)
+  isBugged    Boolean  @default(false)
   category    String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  status      String   @default("Open")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   run   CompareRun     @relation(fields: [runId], references: [id], onDelete: Cascade)
   notes VarianceNote[]
@@ -142,12 +149,117 @@ model VarianceGroup {
 }
 
 model VarianceNote {
-  id              String       @id @default(cuid())
+  id              String   @id @default(cuid())
   varianceGroupId String
   noteText        String
   author          String?
-  createdAt       DateTime     @default(now())
+  createdAt       DateTime @default(now())
 
   varianceGroup VarianceGroup @relation(fields: [varianceGroupId], references: [id], onDelete: Cascade)
+
   @@index([varianceGroupId])
+}
+
+model WorkflowStatus {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  sortOrder Int      @default(0)
+  isClosed  Boolean  @default(false)
+  color     String? // optional hex or semantic label (e.g. "error", "#D32F2F")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model NoteTemplate {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  content   String // HTML snippet to insert into notes
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuditEvent {
+  id          String   @id @default(cuid())
+  runId       String
+  bac         String
+  brandToken  String
+  productCode String
+  field       String
+  prev        Json
+  next        Json
+  actor       String?
+  createdAt   DateTime @default(now())
+
+  @@index([runId, bac])
+  @@index([runId, brandToken, productCode])
+  @@index([createdAt])
+}
+
+enum PricingTableAuditAction {
+  UPLOAD
+  EDIT
+}
+
+model PricingTableVersion {
+  id              String   @id @default(cuid())
+  createdAt       DateTime @default(now())
+  createdByUserId String?
+  createdByEmail  String?
+  createdByName   String?
+  sourceFilename  String?
+  sourceSha256    String?
+  isActive        Boolean  @default(false)
+
+  createdByUser User?                    @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  rows          PricingTableRow[]
+  auditEvents   PricingTableAuditEvent[]
+  runs          CompareRun[]
+
+  @@index([isActive])
+  @@index([createdAt])
+}
+
+model PricingTableRow {
+  id                  String   @id @default(cuid())
+  versionId           String
+  productCode         String
+  pricingTableId      String
+  active              Boolean  @default(true)
+  diBrandName         String
+  websiteTier         String
+  invoiceGroup        String
+  dealerPriceCurrency String
+  dealerPrice         Decimal
+  oemProductCode      String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  version PricingTableVersion      @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  audits  PricingTableAuditEvent[]
+
+  @@unique([versionId, productCode, websiteTier])
+  @@index([versionId])
+  @@index([versionId, productCode])
+}
+
+model PricingTableAuditEvent {
+  id          String                  @id @default(cuid())
+  createdAt   DateTime                @default(now())
+  action      PricingTableAuditAction
+  versionId   String
+  actorUserId String?
+  actorEmail  String?
+  actorName   String?
+  rowId       String?
+  field       String?
+  prev        Json?
+  next        Json?
+  message     String?
+
+  version   PricingTableVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  actorUser User?               @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  row       PricingTableRow?    @relation(fields: [rowId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([versionId, createdAt])
 }

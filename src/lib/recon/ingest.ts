@@ -130,3 +130,4 @@ function sniffType(buffer: Buffer, extension: string): { mime: string; ext: stri
   return undefined;
 }
 
+

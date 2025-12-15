@@ -103,6 +103,6 @@ test("Mobile: core flow remains usable + filters accordion works", async ({ page
   // Drilldown navigation still works
   await page.getByTestId("bac-row-000123").click();
   await expect(page).toHaveURL(new RegExp(`/runs/${runId}/bacs/000123$`));
-  await expect(page.getByText("BAC 000123")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "BAC 000123" })).toBeVisible();
 });
 

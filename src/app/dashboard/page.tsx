@@ -1,3 +1,5 @@
+"use client";
+
 import { HousingAnalytics } from "@/components/dashboard/HousingAnalytics";
 import { Card, CardContent, Container, Stack, Typography } from "@mui/material";
 

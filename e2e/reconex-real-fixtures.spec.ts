@@ -129,3 +129,4 @@ test("Real fixtures UI flow: upload → compare → drilldown → notes/category
   await expect(page.getByTestId(`category-input-${key}`)).toHaveValue("Pricing");
 });
 
+

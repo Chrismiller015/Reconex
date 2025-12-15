@@ -20,14 +20,39 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return NextResponse.json({ error: "Missing bac, brandToken, productCode, or isRemoved" }, { status: 400 });
     }
 
+    const existing = await prisma.varianceGroup.findUnique({
+      where: { runId_bac_brandToken_productCode: { runId, bac, brandToken, productCode } },
+    });
+    if (!existing) return NextResponse.json({ error: "Group not found" }, { status: 404 });
+
     const updated = await prisma.varianceGroup.update({
       where: { runId_bac_brandToken_productCode: { runId, bac, brandToken, productCode } },
       data: { isRemoved },
     });
+
+    if (existing.isRemoved !== updated.isRemoved) {
+      try {
+        await prisma.auditEvent.create({
+          data: {
+            runId,
+            bac,
+            brandToken,
+            productCode,
+            field: "isRemoved",
+            prev: { isRemoved: existing.isRemoved } as unknown as object,
+            next: { isRemoved: updated.isRemoved } as unknown as object,
+            actor: null,
+          },
+        });
+      } catch {
+        // best-effort
+      }
+    }
     return NextResponse.json(updated);
   } catch (error) {
     logger.error({ err: error }, "Failed to update removal state");
     return NextResponse.json({ error: "Failed to update removal state" }, { status: 500 });
   }
 }
+
 

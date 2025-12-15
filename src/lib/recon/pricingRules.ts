@@ -28,17 +28,11 @@ export function isWebsitePackageOemPrefix(oemPrefix: string | null): boolean {
 export function computePrimaryBrandSet(brands: BrandToken[]): Set<BrandToken> {
   const present = new Set<BrandToken>(brands);
 
-  const level1: BrandToken[] = ["CBG", "CB", "CG", "C"];
-  const level2: BrandToken[] = ["B", "G", "BG"];
-
-  const hasLevel1 = level1.some((b) => present.has(b));
-  if (hasLevel1) return new Set(level1.filter((b) => present.has(b)));
-
-  const hasLevel2 = level2.some((b) => present.has(b));
-  if (hasLevel2) return new Set(level2.filter((b) => present.has(b)));
-
-  if (present.has("CAD")) return new Set<BrandToken>(["CAD"]);
-  return new Set<BrandToken>();
+  // Website packages: we only want ONE "primary" brand (full price) per BAC; the rest should be secondary.
+  // Pick the most-comprehensive brand token present, in priority order.
+  const priority: BrandToken[] = ["CBG", "CB", "CG", "C", "BG", "B", "G", "CAD"];
+  const primary = priority.find((b) => present.has(b)) ?? null;
+  return primary ? new Set<BrandToken>([primary]) : new Set<BrandToken>();
 }
 
 export type PricingResolution = {
@@ -119,4 +113,5 @@ export function resolveExpectedPricing(table: PricingTable, input: PricingResolu
 export function moneyMismatch(actual: Decimal, expected: Decimal, tolerance: Decimal = MONEY_TOLERANCE): boolean {
   return actual.sub(expected).abs().gt(tolerance);
 }
+
 

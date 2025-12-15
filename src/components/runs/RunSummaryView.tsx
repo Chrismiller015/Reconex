@@ -13,6 +13,8 @@ import {
   FormControlLabel,
   Stack,
   Switch,
+  Tab,
+  Tabs,
   TextField,
   Typography,
   Button as MuiButton,
@@ -20,11 +22,20 @@ import {
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import DownloadIcon from "@mui/icons-material/Download";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import { useSnackbar } from "notistack";
 import { flagChipProps } from "@/components/runs/flagPresentation";
 
 type RunSummaryDto = {
   runId: string;
-  kpis: { bacsWithVariance: number; totalGm: string; totalDi: string; netDelta: string };
+  kpis: {
+    bacsWithVariance: number;
+    totalGm: string;
+    totalDi: string;
+    netDelta: string;
+    remainingVarianceAbs: string;
+    resolvedVarianceAbs: string;
+    resolvedPercent: number;
+  };
   bacs: Array<{
     bac: string;
     gmTotal: string;
@@ -34,10 +45,12 @@ type RunSummaryDto = {
     notesCount: number;
     hasRemovedGroups: boolean;
     allVarianceGroupsRemoved: boolean;
+    hasBuggedGroups: boolean;
   }>;
 };
 
 export function RunSummaryView() {
+  const { enqueueSnackbar } = useSnackbar();
   const params = useParams<{ id: string }>();
   const runId = params.id;
   const router = useRouter();
@@ -46,6 +59,7 @@ export function RunSummaryView() {
 
   const DEFAULTS = useMemo(
     () => ({
+      pricingMode: "run" as "run" | "latest",
       showRemoved: false,
       bacSearch: "",
       minAbsDelta: "",
@@ -57,6 +71,7 @@ export function RunSummaryView() {
       onlyDesync: false,
       onlyMissingOnGm: false,
       onlyMissingOnDi: false,
+      onlyBugged: false,
     }),
     [],
   );
@@ -66,6 +81,7 @@ export function RunSummaryView() {
   const isSyncingUrlRef = useRef(false);
 
   const [showRemoved, setShowRemoved] = useState(DEFAULTS.showRemoved);
+  const [pricingMode, setPricingMode] = useState<"run" | "latest">(DEFAULTS.pricingMode);
   const [bacSearch, setBacSearch] = useState(DEFAULTS.bacSearch);
   const [minAbsDelta, setMinAbsDelta] = useState(DEFAULTS.minAbsDelta);
   const [brandToken, setBrandToken] = useState(DEFAULTS.brandToken);
@@ -76,6 +92,7 @@ export function RunSummaryView() {
   const [onlyDesync, setOnlyDesync] = useState(DEFAULTS.onlyDesync);
   const [onlyMissingOnGm, setOnlyMissingOnGm] = useState(DEFAULTS.onlyMissingOnGm);
   const [onlyMissingOnDi, setOnlyMissingOnDi] = useState(DEFAULTS.onlyMissingOnDi);
+  const [onlyBugged, setOnlyBugged] = useState(DEFAULTS.onlyBugged);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
 
   const parseBool = (raw: string | null, fallback: boolean): boolean => {
@@ -88,6 +105,7 @@ export function RunSummaryView() {
 
   const applyFilterState = useCallback((next: Partial<typeof DEFAULTS>) => {
     setShowRemoved(next.showRemoved ?? DEFAULTS.showRemoved);
+    setPricingMode(next.pricingMode ?? DEFAULTS.pricingMode);
     setBacSearch(next.bacSearch ?? DEFAULTS.bacSearch);
     setMinAbsDelta(next.minAbsDelta ?? DEFAULTS.minAbsDelta);
     setBrandToken(next.brandToken ?? DEFAULTS.brandToken);
@@ -98,6 +116,7 @@ export function RunSummaryView() {
     setOnlyDesync(next.onlyDesync ?? DEFAULTS.onlyDesync);
     setOnlyMissingOnGm(next.onlyMissingOnGm ?? DEFAULTS.onlyMissingOnGm);
     setOnlyMissingOnDi(next.onlyMissingOnDi ?? DEFAULTS.onlyMissingOnDi);
+    setOnlyBugged(next.onlyBugged ?? DEFAULTS.onlyBugged);
   }, [DEFAULTS]);
 
   // Hydrate state from URL (preferred) or localStorage (fallback).
@@ -106,6 +125,7 @@ export function RunSummaryView() {
 
     const sp = searchParams;
     const urlHasAnyKnown =
+      sp.has("pricingMode") ||
       sp.has("showRemoved") ||
       sp.has("bac") ||
       sp.has("minAbsDelta") ||
@@ -116,10 +136,12 @@ export function RunSummaryView() {
       sp.has("onlyDuplicates") ||
       sp.has("onlyDesync") ||
       sp.has("onlyMissingOnGm") ||
-      sp.has("onlyMissingOnDi");
+      sp.has("onlyMissingOnDi") ||
+      sp.has("onlyBugged");
 
     if (urlHasAnyKnown) {
       applyFilterState({
+        pricingMode: sp.get("pricingMode") === "latest" ? "latest" : DEFAULTS.pricingMode,
         showRemoved: parseBool(sp.get("showRemoved"), DEFAULTS.showRemoved),
         bacSearch: sp.get("bac") ?? DEFAULTS.bacSearch,
         minAbsDelta: sp.get("minAbsDelta") ?? DEFAULTS.minAbsDelta,
@@ -131,6 +153,7 @@ export function RunSummaryView() {
         onlyDesync: parseBool(sp.get("onlyDesync"), DEFAULTS.onlyDesync),
         onlyMissingOnGm: parseBool(sp.get("onlyMissingOnGm"), DEFAULTS.onlyMissingOnGm),
         onlyMissingOnDi: parseBool(sp.get("onlyMissingOnDi"), DEFAULTS.onlyMissingOnDi),
+        onlyBugged: parseBool(sp.get("onlyBugged"), DEFAULTS.onlyBugged),
       });
       hydratedRef.current = true;
       return;
@@ -154,6 +177,7 @@ export function RunSummaryView() {
     if (!hydratedRef.current) return;
 
     const nextState = {
+      pricingMode,
       showRemoved,
       bacSearch,
       minAbsDelta,
@@ -165,6 +189,7 @@ export function RunSummaryView() {
       onlyDesync,
       onlyMissingOnGm,
       onlyMissingOnDi,
+      onlyBugged,
     };
 
     try {
@@ -174,6 +199,7 @@ export function RunSummaryView() {
     }
 
     const sp = new URLSearchParams();
+    if (pricingMode !== DEFAULTS.pricingMode) sp.set("pricingMode", pricingMode);
     if (showRemoved !== DEFAULTS.showRemoved) sp.set("showRemoved", String(showRemoved));
     if (bacSearch.trim()) sp.set("bac", bacSearch.trim());
     if (minAbsDelta.trim()) sp.set("minAbsDelta", minAbsDelta.trim());
@@ -187,6 +213,7 @@ export function RunSummaryView() {
     if (onlyDesync !== DEFAULTS.onlyDesync) sp.set("onlyDesync", String(onlyDesync));
     if (onlyMissingOnGm !== DEFAULTS.onlyMissingOnGm) sp.set("onlyMissingOnGm", String(onlyMissingOnGm));
     if (onlyMissingOnDi !== DEFAULTS.onlyMissingOnDi) sp.set("onlyMissingOnDi", String(onlyMissingOnDi));
+    if (onlyBugged !== DEFAULTS.onlyBugged) sp.set("onlyBugged", String(onlyBugged));
 
     const nextUrl = sp.toString() ? `${pathname}?${sp.toString()}` : pathname;
     const currentUrl = searchParams.toString() ? `${pathname}?${searchParams.toString()}` : pathname;
@@ -203,6 +230,7 @@ export function RunSummaryView() {
     router,
     searchParams,
     storageKey,
+    pricingMode,
     showRemoved,
     bacSearch,
     minAbsDelta,
@@ -214,6 +242,7 @@ export function RunSummaryView() {
     onlyDesync,
     onlyMissingOnGm,
     onlyMissingOnDi,
+    onlyBugged,
   ]);
 
   // Sync URL -> state when the user lands on a shared link (or manually edits URL).
@@ -223,6 +252,7 @@ export function RunSummaryView() {
 
     const sp = searchParams;
     const urlHasAnyKnown =
+      sp.has("pricingMode") ||
       sp.has("showRemoved") ||
       sp.has("bac") ||
       sp.has("minAbsDelta") ||
@@ -233,10 +263,12 @@ export function RunSummaryView() {
       sp.has("onlyDuplicates") ||
       sp.has("onlyDesync") ||
       sp.has("onlyMissingOnGm") ||
-      sp.has("onlyMissingOnDi");
+      sp.has("onlyMissingOnDi") ||
+      sp.has("onlyBugged");
     if (!urlHasAnyKnown) return;
 
     applyFilterState({
+      pricingMode: sp.get("pricingMode") === "latest" ? "latest" : DEFAULTS.pricingMode,
       showRemoved: parseBool(sp.get("showRemoved"), DEFAULTS.showRemoved),
       bacSearch: sp.get("bac") ?? DEFAULTS.bacSearch,
       minAbsDelta: sp.get("minAbsDelta") ?? DEFAULTS.minAbsDelta,
@@ -248,6 +280,7 @@ export function RunSummaryView() {
       onlyDesync: parseBool(sp.get("onlyDesync"), DEFAULTS.onlyDesync),
       onlyMissingOnGm: parseBool(sp.get("onlyMissingOnGm"), DEFAULTS.onlyMissingOnGm),
       onlyMissingOnDi: parseBool(sp.get("onlyMissingOnDi"), DEFAULTS.onlyMissingOnDi),
+      onlyBugged: parseBool(sp.get("onlyBugged"), DEFAULTS.onlyBugged),
     });
   }, [DEFAULTS, applyFilterState, searchParams]);
 
@@ -266,6 +299,7 @@ export function RunSummaryView() {
       onlyDesync,
       onlyMissingOnGm,
       onlyMissingOnDi,
+      onlyBugged,
     ],
     queryFn: async (): Promise<RunSummaryDto> => {
       const sp = new URLSearchParams();
@@ -280,6 +314,7 @@ export function RunSummaryView() {
       if (onlyDesync) sp.set("onlyDesync", "true");
       if (onlyMissingOnGm) sp.set("onlyMissingOnGm", "true");
       if (onlyMissingOnDi) sp.set("onlyMissingOnDi", "true");
+      if (onlyBugged) sp.set("onlyBugged", "true");
       const res = await fetch(`/api/runs/${runId}/summary?${sp.toString()}`, { cache: "no-store" });
       if (!res.ok) throw new Error("Failed to load run summary");
       return await res.json();
@@ -335,6 +370,12 @@ export function RunSummaryView() {
                 return <Chip size="small" label={meta.label} variant="outlined" color={meta.color} />;
               })()
             ) : null}
+            {row.original.hasBuggedGroups ? (
+              (() => {
+                const meta = flagChipProps("DPE_BUGGED");
+                return <Chip size="small" label={meta.label} variant="outlined" color={meta.color} />;
+              })()
+            ) : null}
           </Stack>
         ),
       },
@@ -345,6 +386,7 @@ export function RunSummaryView() {
 
   const data = summaryQuery.data;
   const hasActiveFilters =
+    pricingMode !== DEFAULTS.pricingMode ||
     showRemoved ||
     !!bacSearch.trim() ||
     !!minAbsDelta.trim() ||
@@ -355,7 +397,8 @@ export function RunSummaryView() {
     onlyDuplicates ||
     onlyDesync ||
     onlyMissingOnGm ||
-    onlyMissingOnDi;
+    onlyMissingOnDi ||
+    onlyBugged;
 
   const clearFilters = () => {
     applyFilterState(DEFAULTS);
@@ -364,9 +407,22 @@ export function RunSummaryView() {
   return (
     <Stack spacing={2}>
       <Box>
-        <Typography variant="h4" fontWeight={800}>
-          Run Results
-        </Typography>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ xs: "stretch", sm: "center" }}>
+          <Typography variant="h4" fontWeight={800} sx={{ flex: 1 }}>
+            Run Results
+          </Typography>
+          <Tabs
+            value={0}
+            onChange={(_, next) => {
+              if (next === 1) router.push(`/runs/${runId}/diffs`);
+            }}
+            variant="scrollable"
+            allowScrollButtonsMobile
+          >
+            <Tab label="Results" value={0} />
+            <Tab label="Run Diffs" value={1} />
+          </Tabs>
+        </Stack>
         <Typography variant="body2" color="text.secondary">
           BAC-level variance table (Δ = DI − GM). Click a BAC to drill into product-level drivers.
         </Typography>
@@ -374,15 +430,38 @@ export function RunSummaryView() {
 
       <Stack direction={{ xs: "column", lg: "row" }} spacing={2} alignItems={{ xs: "stretch", lg: "center" }}>
         <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
-          <Chip label={`# BACs with variance: ${data?.kpis.bacsWithVariance ?? "—"}`} />
-          <Chip label={`Total GM $: ${data?.kpis.totalGm ?? "—"}`} />
-          <Chip label={`Total DI $: ${data?.kpis.totalDi ?? "—"}`} />
-          <Chip label={`Net Δ: ${data?.kpis.netDelta ?? "—"}`} color="primary" variant="outlined" />
+          <Chip label={`# BACs in table: ${data?.kpis.bacsWithVariance ?? "—"}`} />
+          <Chip label={`GM file total: ${data ? `$${data.kpis.totalGm}` : "—"}`} />
+          <Chip label={`DI file total: ${data ? `$${data.kpis.totalDi}` : "—"}`} />
+          <Chip label={`Net Δ: ${data ? `$${data.kpis.netDelta}` : "—"}`} color="primary" variant="outlined" />
+          <Chip label={`Remaining variance: ${data ? `$${data.kpis.remainingVarianceAbs}` : "—"}`} color="warning" variant="outlined" />
+          <Chip label={`Resolved: ${data ? `${data.kpis.resolvedPercent.toFixed(0)}%` : "—"}`} color="success" variant="outlined" />
         </Stack>
 
         <Box sx={{ flex: 1 }} />
 
         <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ xs: "stretch", sm: "center" }}>
+          <MuiButton
+            variant="outlined"
+            onClick={async () => {
+              const url = window.location.href;
+              try {
+                await navigator.clipboard.writeText(url);
+                enqueueSnackbar("Link copied", { variant: "success" });
+              } catch {
+                const ta = document.createElement("textarea");
+                ta.value = url;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand("copy");
+                ta.remove();
+                enqueueSnackbar("Link copied", { variant: "success" });
+              }
+            }}
+            data-testid="copy-link"
+          >
+            Copy link
+          </MuiButton>
           <MuiButton
             variant="outlined"
             startIcon={<DownloadIcon />}
@@ -459,6 +538,10 @@ export function RunSummaryView() {
             </Stack>
             <Stack direction={{ xs: "column", md: "row" }} spacing={2} flexWrap="wrap" useFlexGap>
               <FormControlLabel
+                control={<Switch checked={pricingMode === "latest"} onChange={(e) => setPricingMode(e.target.checked ? "latest" : "run")} />}
+                label="Use latest pricing"
+              />
+              <FormControlLabel
                 control={<Switch checked={showRemoved} onChange={(e) => setShowRemoved(e.target.checked)} />}
                 label="Show removed"
               />
@@ -486,6 +569,10 @@ export function RunSummaryView() {
                 control={<Switch checked={onlyMissingOnDi} onChange={(e) => setOnlyMissingOnDi(e.target.checked)} />}
                 label="Only missing on DI"
               />
+              <FormControlLabel
+                control={<Switch checked={onlyBugged} onChange={(e) => setOnlyBugged(e.target.checked)} />}
+                label="Only bugged"
+              />
             </Stack>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1} justifyContent="flex-end">
               <MuiButton variant="outlined" onClick={clearFilters} disabled={!hasActiveFilters} data-testid="clear-filters-2">
@@ -510,6 +597,8 @@ export function RunSummaryView() {
           showAlertBanner: summaryQuery.isError,
           showProgressBars: summaryQuery.isFetching,
         }}
+        enableRowVirtualization
+        enableColumnVirtualization
         enableStickyHeader
         muiTableHeadCellProps={{
           sx: {
@@ -519,7 +608,7 @@ export function RunSummaryView() {
             backgroundColor: "background.paper",
           },
         }}
-        muiTableContainerProps={{ sx: { overflowX: "auto" } }}
+        muiTableContainerProps={{ sx: { overflowX: "auto", maxHeight: "70vh" } }}
         muiToolbarAlertBannerProps={
           summaryQuery.isError ? { color: "error", children: "Failed to load summary." } : undefined
         }
@@ -527,7 +616,10 @@ export function RunSummaryView() {
         enableDensityToggle={false}
         enableFullScreenToggle={false}
         muiTableBodyRowProps={({ row }) => ({
-          onClick: () => router.push(`/runs/${runId}/bacs/${row.original.bac}`),
+          onClick: () => {
+            const qs = pricingMode === "latest" ? "?pricingMode=latest" : "";
+            router.push(`/runs/${runId}/bacs/${row.original.bac}${qs}`);
+          },
           sx: { cursor: "pointer" },
           "data-testid": `bac-row-${row.original.bac}`,
         })}
@@ -537,4 +629,5 @@ export function RunSummaryView() {
     </Stack>
   );
 }
+
 

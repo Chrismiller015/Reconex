@@ -126,3 +126,4 @@ test("Drilldown context: hover shows DI brand name + drawer explains status/pric
   await expect(drawer.getByText(/Account:/i)).toBeVisible();
 });
 
+

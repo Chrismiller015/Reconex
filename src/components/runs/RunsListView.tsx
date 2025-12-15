@@ -3,7 +3,7 @@
 import { useMemo, type ComponentProps } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MaterialReactTable, type MRT_ColumnDef } from "material-react-table";
-import { Box, Button as MuiButton, Chip, Stack, Typography } from "@mui/material";
+import { Box, Button as MuiButton, Chip, Container, Stack, Typography } from "@mui/material";
 import { useRouter } from "next/navigation";
 import ReplayIcon from "@mui/icons-material/Replay";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
@@ -100,7 +100,8 @@ export function RunsListView() {
   );
 
   return (
-    <Stack spacing={2}>
+    <Container component="main" sx={{ py: { xs: 3, md: 6 } }}>
+      <Stack spacing={2}>
       <Box>
         <Typography variant="h4" fontWeight={800}>
           Compare Runs
@@ -130,7 +131,10 @@ export function RunsListView() {
         }
         initialState={{ density: "comfortable" }}
       />
-    </Stack>
+      </Stack>
+    </Container>
   );
 }
+
+
 

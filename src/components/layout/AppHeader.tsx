@@ -12,6 +12,7 @@ export const AppHeader = () => {
   const toggleSidebar = useUiStore((state) => state.toggleSidebar);
   const navLinks = [
     { label: "Welcome", href: "/" },
+    { label: "How To Use", href: "/how-to-use" },
     { label: "File Library", href: "/files" },
     { label: "New Compare", href: "/compare/new" },
     { label: "Compare Runs", href: "/runs" },
@@ -56,7 +57,7 @@ export const AppHeader = () => {
               backgroundColor: (theme) => theme.palette.background.default,
             }}
           >
-            <Image src="/reconex-logo.png" alt="ReconEx" width={36} height={36} priority />
+            <Image src="/reconex-logo-v2.png" alt="ReconEx" width={36} height={36} priority />
           </Box>
           <Typography variant="h6" sx={{ fontWeight: 600, letterSpacing: 0.4 }}>
             ReconEx

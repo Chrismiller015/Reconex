@@ -20,6 +20,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const onlyDesync = url.searchParams.get("onlyDesync") === "true";
     const onlyMissingOnGm = url.searchParams.get("onlyMissingOnGm") === "true";
     const onlyMissingOnDi = url.searchParams.get("onlyMissingOnDi") === "true";
+    const onlyBugged = url.searchParams.get("onlyBugged") === "true";
 
     const summary = await getRunSummary(id, {
       showRemoved,
@@ -33,6 +34,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       onlyDesync,
       onlyMissingOnGm,
       onlyMissingOnDi,
+      onlyBugged,
     });
     return NextResponse.json(summary);
   } catch (error) {
@@ -40,4 +42,5 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     return NextResponse.json({ error: "Failed to load run summary" }, { status: 500 });
   }
 }
+
 

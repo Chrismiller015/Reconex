@@ -54,3 +54,4 @@ export function detectSchemaFromHeaders(headers: string[]): SchemaDetection {
   return { schemaType, missing: { gm: missingGm, di: missingDi } };
 }
 
+

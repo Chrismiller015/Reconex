@@ -32,3 +32,4 @@ export function normalizeIsTerminated(input: unknown): NormalizationResult<boole
   return fail("IS_TERMINATED_INVALID", `Is Terminated value "${String(input)}" is not recognized`);
 }
 
+

@@ -66,11 +66,23 @@ test("ReconEx core flow: upload → compare → drilldown → remove variance �
   // File Library upload
   await page.goto("/files");
   const uploadInput = page.locator('input[data-testid="file-upload-input"]');
+  const diUpload = page.waitForResponse(
+    (res) => res.url().includes("/api/files") && res.request().method() === "POST",
+  );
   await uploadInput.setInputFiles(fixtures.diPath);
-  await expect(page.getByText(fixtures.diName)).toBeVisible();
+  const diRes = await diUpload;
+  const diBody = await diRes.text();
+  expect(diRes.ok(), `DI upload failed ${diRes.status()} ${diBody}`).toBeTruthy();
+  await expect(page.getByText(fixtures.diName, { exact: true })).toBeVisible({ timeout: 30000 });
 
+  const gmUpload = page.waitForResponse(
+    (res) => res.url().includes("/api/files") && res.request().method() === "POST",
+  );
   await uploadInput.setInputFiles(fixtures.gmPath);
-  await expect(page.getByText(fixtures.gmName)).toBeVisible();
+  const gmRes = await gmUpload;
+  const gmBody = await gmRes.text();
+  expect(gmRes.ok(), `GM upload failed ${gmRes.status()} ${gmBody}`).toBeTruthy();
+  await expect(page.getByText(fixtures.gmName, { exact: true })).toBeVisible({ timeout: 30000 });
 
   // New Compare requires both files
   await page.goto("/compare/new");
@@ -104,7 +116,7 @@ test("ReconEx core flow: upload → compare → drilldown → remove variance �
   await expect(page).toHaveURL(new RegExp(`/runs/${runId}/bacs/000123$`));
 
   // Drilldown should show both sides and variance group row
-  await expect(page.getByText("BAC 000123")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "BAC 000123" })).toBeVisible();
   await expect(page.getByTestId("group-row-C-DI_P2_C")).toBeVisible();
 
   // Match helper: hovering DI row highlights matching GM row by matchKey
@@ -113,9 +125,7 @@ test("ReconEx core flow: upload → compare → drilldown → remove variance �
   await expect(page.locator(`[data-side="gm"][data-match-key="${matchKey}"][data-highlighted="true"]`).first()).toBeVisible();
 
   // Remove the variance group
-  const groupRow = page.getByTestId("group-row-C-DI_P2_C");
-  const toggle = groupRow.locator('input[type="checkbox"]').first();
-  await toggle.check();
+  await page.getByTestId("removed-toggle-C-DI_P2_C").check();
 
   // Back to run summary: BAC should disappear by default
   await page.goto(`/runs/${runId}`);
@@ -143,4 +153,5 @@ test("ReconEx core flow: upload → compare → drilldown → remove variance �
   const xlsxDownload = await xlsxPromise;
   expect(xlsxDownload.suggestedFilename()).toContain(".xlsx");
 });
+
 

@@ -20,6 +20,7 @@ type RunSummaryOptions = {
   onlyDesync?: boolean;
   onlyMissingOnGm?: boolean;
   onlyMissingOnDi?: boolean;
+  onlyBugged?: boolean;
 };
 
 export type RunSummaryDto = {
@@ -29,6 +30,9 @@ export type RunSummaryDto = {
     totalGm: string;
     totalDi: string;
     netDelta: string;
+    remainingVarianceAbs: string;
+    resolvedVarianceAbs: string;
+    resolvedPercent: number;
   };
   bacs: Array<{
     bac: string;
@@ -39,6 +43,7 @@ export type RunSummaryDto = {
     notesCount: number;
     hasRemovedGroups: boolean;
     allVarianceGroupsRemoved: boolean;
+    hasBuggedGroups: boolean;
   }>;
 };
 
@@ -73,6 +78,52 @@ export async function getRunSummary(runId: string, options: RunSummaryOptions = 
     include: { _count: { select: { notes: true } } },
     orderBy: [{ bac: "asc" }, { brandToken: "asc" }, { productCode: "asc" }],
   });
+
+  let closedSet = new Set<string>(["Closed", "Resolved", "Archived"]);
+  try {
+    const prismaAny = prisma as unknown as {
+      workflowStatus: {
+        findMany: (args: unknown) => Promise<Array<{ name: string }>>;
+      };
+    };
+    const closedStatuses = await prismaAny.workflowStatus
+      .findMany({ where: { isClosed: true }, select: { name: true } })
+      .then((rows: Array<{ name: string }>) => rows.map((r: { name: string }) => r.name));
+    if (closedStatuses.length) closedSet = new Set<string>(closedStatuses);
+  } catch {
+    // If the table hasn't been migrated yet (e.g. ephemeral E2E env), fall back to defaults.
+    closedSet = new Set<string>(["Closed", "Resolved", "Archived"]);
+  }
+
+  // Global run-level KPIs (independent of table filters).
+  let totalGmAll = new Decimal(0);
+  let totalDiAll = new Decimal(0);
+  let remainingVarianceAbs = new Decimal(0);
+  let resolvedVarianceAbs = new Decimal(0);
+  for (const g of groups) {
+    const gm = toDec(g.gmAmount);
+    const di = toDec(g.diAmount);
+    const delta = toDec(g.delta);
+
+    // Totals: removed items are excluded from the totals (per the product workflow).
+    if (!g.isRemoved) {
+      totalGmAll = totalGmAll.add(gm);
+      totalDiAll = totalDiAll.add(di);
+    }
+
+    // Variance progress: we track only true variances (outside tolerance).
+    const info = extractGroupFlags(g.flags);
+    const isVariance = Boolean(info.isVariance ?? delta.abs().gt(MONEY_TOLERANCE));
+    if (!isVariance) continue;
+
+    const status = String((g as unknown as { status?: unknown }).status ?? "").trim();
+    const isClosed = closedSet.has(status) || g.isRemoved;
+    if (isClosed) resolvedVarianceAbs = resolvedVarianceAbs.add(delta.abs());
+    else remainingVarianceAbs = remainingVarianceAbs.add(delta.abs());
+  }
+
+  const totalVarianceAbs = remainingVarianceAbs.add(resolvedVarianceAbs);
+  const resolvedPercent = totalVarianceAbs.gt(0) ? resolvedVarianceAbs.div(totalVarianceAbs).mul(100).toNumber() : 0;
 
   const bacSearch = options.bacSearch?.trim();
   const minAbsDelta = options.minAbsDelta ? new Decimal(options.minAbsDelta) : null;
@@ -186,6 +237,7 @@ export async function getRunSummary(runId: string, options: RunSummaryOptions = 
     let diSum = new Decimal(0);
 
     let hasRemovedGroups = false;
+    let hasBuggedGroups = false;
     let varianceGroupsCount = 0;
     let varianceGroupsRemovedCount = 0;
 
@@ -195,9 +247,12 @@ export async function getRunSummary(runId: string, options: RunSummaryOptions = 
     for (const g of bacGroups) {
       const info = extractGroupFlags(g.flags);
       const gFlags = info.flags ?? [];
-      if (backfilledStatusMismatchIds.has(g.id) && !gFlags.includes("STATUS_MISMATCH")) flags.add("STATUS_MISMATCH");
-      for (const f of gFlags) flags.add(f);
       notesCount += g._count.notes;
+
+      if (Boolean((g as unknown as { isBugged?: unknown }).isBugged)) {
+        hasBuggedGroups = true;
+        flags.add("DPE_BUGGED");
+      }
 
       if (brandTokenFilter && g.brandToken.toUpperCase() === brandTokenFilter) matchesBrandFilter = true;
       if (productCodeFilter && g.productCode.includes(productCodeFilter)) matchesProductCodeFilter = true;
@@ -213,6 +268,11 @@ export async function getRunSummary(runId: string, options: RunSummaryOptions = 
         continue; // removed groups never contribute to totals
       }
 
+      // Only non-removed groups contribute "issue" flags for run results badges.
+      // (We still track hasRemovedGroups separately so the UI can show a Removed indicator if desired.)
+      if (backfilledStatusMismatchIds.has(g.id) && !gFlags.includes("STATUS_MISMATCH")) flags.add("STATUS_MISMATCH");
+      for (const f of gFlags) flags.add(f);
+
       gmSum = gmSum.add(toDec(g.gmAmount));
       diSum = diSum.add(toDec(g.diAmount));
     }
@@ -223,7 +283,7 @@ export async function getRunSummary(runId: string, options: RunSummaryOptions = 
     if (outsideTolerance) flags.add("VARIANCE");
 
     // Default behavior: hide BAC if all its variance groups were removed (unless showRemoved).
-    if (allVarianceGroupsRemoved && !options.showRemoved) continue;
+    if (allVarianceGroupsRemoved && !options.showRemoved && !hasBuggedGroups) continue;
 
     // Apply delta threshold filter (absolute).
     if (minAbsDelta && delta.abs().lt(minAbsDelta)) continue;
@@ -232,12 +292,13 @@ export async function getRunSummary(runId: string, options: RunSummaryOptions = 
     if (!matchesBrandFilter) continue;
     if (!matchesProductCodeFilter) continue;
 
-    if (options.onlyOutsideTolerance && !outsideTolerance) continue;
+    if (options.onlyOutsideTolerance && !outsideTolerance && !hasBuggedGroups) continue;
     if (options.onlyTerminated && !flags.has("TERMINATED_BAC")) continue;
     if (options.onlyDuplicates && !flags.has("GM_DUPLICATES")) continue;
     if (options.onlyDesync && !flags.has("GM_DESYNC_DETECTED")) continue;
     if (options.onlyMissingOnGm && !flags.has("MISSING_ON_GM")) continue;
     if (options.onlyMissingOnDi && !flags.has("MISSING_ON_DI")) continue;
+    if (options.onlyBugged && !hasBuggedGroups) continue;
 
     // Only include BACs that still look like "issues" (outside tolerance OR any flags),
     // unless the caller explicitly wants removed BACs visible.
@@ -253,22 +314,26 @@ export async function getRunSummary(runId: string, options: RunSummaryOptions = 
       notesCount,
       hasRemovedGroups,
       allVarianceGroupsRemoved,
+      hasBuggedGroups,
     });
 
     totalGm = totalGm.add(gmSum);
     totalDi = totalDi.add(diSum);
   }
 
-  const netDelta = totalDi.sub(totalGm);
   return {
     runId,
     kpis: {
       bacsWithVariance: bacs.length,
-      totalGm: totalGm.toFixed(2),
-      totalDi: totalDi.toFixed(2),
-      netDelta: netDelta.toFixed(2),
+      totalGm: totalGmAll.toFixed(2),
+      totalDi: totalDiAll.toFixed(2),
+      netDelta: totalDiAll.sub(totalGmAll).toFixed(2),
+      remainingVarianceAbs: remainingVarianceAbs.toFixed(2),
+      resolvedVarianceAbs: resolvedVarianceAbs.toFixed(2),
+      resolvedPercent: Math.max(0, Math.min(100, resolvedPercent)),
     },
     bacs,
   };
 }
+
 

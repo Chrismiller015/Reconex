@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { parseUploadedFileToRows } from "@/lib/recon/parseUploadedFile";
 import { runCompareEngine } from "@/lib/recon/compareEngine";
-import { getPricingTable } from "@/lib/pricing/pricingTable";
+import { getActivePricingTable } from "@/lib/pricing/pricingTableDb";
 import { resolveExpectedPricing } from "@/lib/recon/pricingRules";
 
 function toDbMoney(dec: Decimal): string {
@@ -11,9 +11,13 @@ function toDbMoney(dec: Decimal): string {
 }
 
 export async function computeAndPersistRun(runId: string, now: Date = new Date()): Promise<void> {
+  const pricing = await getActivePricingTable().catch(() => null);
+  const pricingTable = pricing?.table ?? null;
+  const pricingTableVersionId = pricing?.version.id ?? null;
+
   await prisma.compareRun.update({
     where: { id: runId },
-    data: { status: "RUNNING", errorMessage: null, lastRunAt: now },
+    data: { status: "RUNNING", errorMessage: null, lastRunAt: now, pricingTableVersionId },
   });
 
   try {
@@ -33,7 +37,6 @@ export async function computeAndPersistRun(runId: string, now: Date = new Date()
       throw new Error("Parsed schema types do not match expected DI/GM");
     }
 
-    const pricingTable = getPricingTable();
     const engine = runCompareEngine(
       diParsed.rows,
       gmParsed.rows,
@@ -107,4 +110,6 @@ export async function computeAndPersistRun(runId: string, now: Date = new Date()
     throw error;
   }
 }
+
+
 

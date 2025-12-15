@@ -15,3 +15,4 @@ export function normalizeBac(input: unknown): NormalizationResult<string> {
   return ok(digits.padStart(6, "0"));
 }
 
+

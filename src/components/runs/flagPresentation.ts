@@ -11,6 +11,7 @@ export type ReconFlagCode =
   | "BRAND_MISMATCH"
   | "PRICING_MISMATCH"
   | "HAS_REMOVED"
+  | "DPE_BUGGED"
   | "STATUS_MISMATCH"
   | "EXCLUDED"
   | "NON_BILLABLE"
@@ -50,6 +51,7 @@ const FLAG_META: Partial<Record<ReconFlagCode, FlagMeta>> = {
   GM_DESYNC_DETECTED: { label: "Billing desync", color: "info", variant: "outlined" },
   TERMINATED_BAC: { label: "Terminated BAC", color: "info", variant: "outlined" },
   HAS_REMOVED: { label: "Has removed items", color: "info", variant: "outlined" },
+  DPE_BUGGED: { label: "DPE Bugged", color: "error", variant: "filled" },
 };
 
 const FLAG_DESCRIPTIONS: Partial<Record<ReconFlagCode, FlagDescription>> = {
@@ -109,6 +111,10 @@ const FLAG_DESCRIPTIONS: Partial<Record<ReconFlagCode, FlagDescription>> = {
     title: "Has removed items",
     description: "At least one item in this BAC was marked removed by a user and is excluded from totals.",
   },
+  DPE_BUGGED: {
+    title: "DPE Bugged",
+    description: "User attempted to update DPE but the changes could not be applied.",
+  },
 };
 
 function titleCaseFromConstant(input: string): string {
@@ -160,4 +166,5 @@ export function worstFlagCode(codes: string[]): string | null {
   }
   return worst;
 }
+
 
