@@ -1,17 +1,17 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Roboto_Mono } from "next/font/google";
 import "./globals.css";
 import "@/env.mjs";
 import { AppProviders } from "@/components/layout/AppProviders";
 import { EmotionCacheProvider } from "@/components/layout/EmotionCacheProvider";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const appSans = Inter({
+  variable: "--font-app-sans",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const appMono = Roboto_Mono({
+  variable: "--font-app-mono",
   subsets: ["latin"],
 });
 
@@ -31,7 +31,7 @@ export default async function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body className={`${appSans.variable} ${appMono.variable} antialiased`}>
         <EmotionCacheProvider>
           <AppProviders>{children}</AppProviders>
         </EmotionCacheProvider>
