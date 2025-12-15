@@ -3,8 +3,8 @@ FROM node:20-alpine AS deps
 WORKDIR /app
 RUN apk add --no-cache ca-certificates && update-ca-certificates
 COPY package.json package-lock.json ./
-RUN npm ci --legacy-peer-deps
 COPY prisma ./prisma
+RUN npm ci --legacy-peer-deps
 RUN npx prisma generate
 
 # --- Build stage ---
