@@ -5,13 +5,15 @@ import "@/env.mjs";
 import { AppProviders } from "@/components/layout/AppProviders";
 import { EmotionCacheProvider } from "@/components/layout/EmotionCacheProvider";
 
+// Keep the historical CSS variable names (`--font-geist-*`) so existing global CSS/theme
+// continue to work, while using fonts that are supported by Next.js 14 builds.
 const appSans = Inter({
-  variable: "--font-app-sans",
+  variable: "--font-geist-sans",
   subsets: ["latin"],
 });
 
 const appMono = Roboto_Mono({
-  variable: "--font-app-mono",
+  variable: "--font-geist-mono",
   subsets: ["latin"],
 });
 
