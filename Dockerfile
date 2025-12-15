@@ -4,7 +4,9 @@ WORKDIR /app
 RUN apk add --no-cache ca-certificates && update-ca-certificates
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
-RUN npm ci --legacy-peer-deps
+# Use BuildKit cache mount to speed up npm ci (reuses npm cache across builds)
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --legacy-peer-deps
 RUN npx prisma generate
 
 # --- Build stage ---
