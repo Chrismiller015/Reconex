@@ -37,10 +37,9 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
     volumes:
       - reconex-uploads:/app/storage/uploads
-    # Attempt to migrate, then start the server. 
-    # Note: Dockerfile uses Next.js `output: 'standalone'`, so the correct runtime entrypoint is `node server.js`.
-    # `npm start` runs `next start`, which expects a full `.next` directory and will fail in this image layout.
-    command: ["sh", "-c", "npx prisma migrate deploy && node server.js"]
+    # Use the start.sh script which handles database connection retries and migrations
+    # The script waits for the database to be ready before running migrations and starting the server
+    command: ["sh", "/app/start.sh"]
     expose:
       - "3000"
     restart: always

@@ -76,11 +76,12 @@ COPY --from=builder /app/prisma ./prisma
 # Note: copying node_modules from builder to ensure devDependencies (like prisma CLI) are available for migration script if needed,
 # though ideally we'd prune. For now, safety first.
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/scripts/start.sh ./start.sh
 
 # Create storage directory and assign permissions
-RUN mkdir -p /app/storage/uploads && chown -R nextjs:nodejs /app/storage
+RUN mkdir -p /app/storage/uploads && chown -R nextjs:nodejs /app/storage && chmod +x /app/start.sh
 
 USER nextjs
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+CMD ["sh", "/app/start.sh"]
