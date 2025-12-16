@@ -138,3 +138,4 @@ test("Bugged variance is surfaced and filterable", async ({ page }) => {
   await expect(page.getByTestId("bac-row-000123")).toBeVisible();
 });
 
+
