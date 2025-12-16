@@ -60,6 +60,17 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN NODE_OPTIONS=--max-old-space-size=4096 npm run build
 
+# --- Production dependencies (no devDependencies) ---
+FROM node:20-alpine AS prod-deps
+WORKDIR /app
+RUN apk add --no-cache ca-certificates && update-ca-certificates
+COPY package.json package-lock.json ./
+COPY prisma ./prisma
+# Install ONLY production dependencies (no Storybook, Playwright, Jest, etc.)
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --omit=dev --legacy-peer-deps
+RUN npx prisma generate
+
 # --- Production runtime ---
 FROM node:20-alpine AS runner
 WORKDIR /app
@@ -75,9 +86,9 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/prisma ./prisma
-# Note: copying node_modules from builder to ensure devDependencies (like prisma CLI) are available for migration script if needed,
-# though ideally we'd prune. For now, safety first.
-COPY --from=builder /app/node_modules ./node_modules
+# Use production-only node_modules (400-500MB instead of 1.4GB)
+# This includes Prisma CLI for migrations but excludes Storybook, Playwright, Jest, etc.
+COPY --from=prod-deps /app/node_modules ./node_modules
 
 # Create storage directory and assign permissions
 RUN mkdir -p /app/storage/uploads && chown -R nextjs:nodejs /app/storage
