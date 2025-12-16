@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+// Force this route to be dynamic (not statically generated during build)
+// This prevents Next.js from trying to connect to the database during build time
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 /**
  * Health check endpoint for deployment platforms (Coolify, Kubernetes, etc.)
  * Returns 200 if app is healthy, 503 if not ready
