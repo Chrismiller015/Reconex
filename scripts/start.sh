@@ -9,13 +9,14 @@ RETRY_COUNT=0
 
 echo "Waiting for database to be ready..."
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-  if npx prisma db push --skip-generate --accept-data-loss 2>/dev/null; then
+  echo "Attempting database connection (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
+  if npx prisma db push --skip-generate --accept-data-loss 2>&1; then
     echo "Database is ready!"
     break
   fi
   
   RETRY_COUNT=$((RETRY_COUNT + 1))
-  echo "Database not ready yet (attempt $RETRY_COUNT/$MAX_RETRIES), waiting 2 seconds..."
+  echo "Database not ready yet, waiting 2 seconds..."
   sleep 2
 done
 
