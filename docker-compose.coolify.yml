@@ -28,7 +28,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      DATABASE_URL: postgresql://postgres:Jm41d3pZ80rT3wK_9qA_cVbN@reconex-db:5432/reconex?schema=public
+      DATABASE_URL: postgresql://postgres:postgres@iwo40o84w0wgo8k4k8s0c4o0:5432/reconex?schema=public
       RECONEX_STORAGE_DIR: /app/storage/uploads
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       NEXTAUTH_URL: ${NEXTAUTH_URL}
